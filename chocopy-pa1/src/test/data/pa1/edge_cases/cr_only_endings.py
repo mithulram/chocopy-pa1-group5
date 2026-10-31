@@ -1,0 +1,1 @@
+x:int = 1while x:  x = x - 1

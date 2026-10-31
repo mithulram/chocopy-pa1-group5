@@ -1,0 +1,29 @@
+{
+  "declarations" : [ ],
+  "statements" : [ {
+    "targets" : [ {
+      "name" : "y",
+      "kind" : "Identifier",
+      "location" : [ 2, 1, 2, 1 ]
+    } ],
+    "value" : {
+      "value" : 1,
+      "kind" : "IntegerLiteral",
+      "location" : [ 2, 5, 2, 5 ]
+    },
+    "kind" : "AssignStmt",
+    "location" : [ 2, 1, 2, 5 ]
+  } ],
+  "errors" : {
+    "errors" : [ {
+      "message" : "Parse error near token UNRECOGNIZED: \"Hell\\o\" <bad escape>",
+      "syntax" : true,
+      "kind" : "CompilerError",
+      "location" : [ 1, 5, 1, 12 ]
+    } ],
+    "kind" : "Errors",
+    "location" : [ 0, 0, 0, 0 ]
+  },
+  "kind" : "Program",
+  "location" : [ 2, 1, 2, 6 ]
+}

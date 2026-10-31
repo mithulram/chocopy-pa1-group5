@@ -1,0 +1,333 @@
+{
+  "declarations" : [ ],
+  "statements" : [ {
+    "targets" : [ {
+      "name" : "x",
+      "kind" : "Identifier",
+      "location" : [ 1, 1, 1, 1 ]
+    } ],
+    "value" : {
+      "kind" : "BinaryExpr",
+      "location" : [ 1, 5, 1, 20 ],
+      "left" : {
+        "name" : "a",
+        "kind" : "Identifier",
+        "location" : [ 1, 5, 1, 5 ]
+      },
+      "operator" : "or",
+      "right" : {
+        "kind" : "BinaryExpr",
+        "location" : [ 1, 10, 1, 20 ],
+        "left" : {
+          "name" : "b",
+          "kind" : "Identifier",
+          "location" : [ 1, 10, 1, 10 ]
+        },
+        "operator" : "and",
+        "right" : {
+          "operator" : "not",
+          "operand" : {
+            "name" : "c",
+            "kind" : "Identifier",
+            "location" : [ 1, 20, 1, 20 ]
+          },
+          "kind" : "UnaryExpr",
+          "location" : [ 1, 16, 1, 20 ]
+        }
+      }
+    },
+    "kind" : "AssignStmt",
+    "location" : [ 1, 1, 1, 20 ]
+  }, {
+    "targets" : [ {
+      "name" : "y",
+      "kind" : "Identifier",
+      "location" : [ 2, 1, 2, 1 ]
+    } ],
+    "value" : {
+      "operator" : "not",
+      "operand" : {
+        "kind" : "BinaryExpr",
+        "location" : [ 2, 9, 2, 14 ],
+        "left" : {
+          "name" : "a",
+          "kind" : "Identifier",
+          "location" : [ 2, 9, 2, 9 ]
+        },
+        "operator" : "==",
+        "right" : {
+          "name" : "b",
+          "kind" : "Identifier",
+          "location" : [ 2, 14, 2, 14 ]
+        }
+      },
+      "kind" : "UnaryExpr",
+      "location" : [ 2, 5, 2, 14 ]
+    },
+    "kind" : "AssignStmt",
+    "location" : [ 2, 1, 2, 14 ]
+  }, {
+    "targets" : [ {
+      "name" : "z",
+      "kind" : "Identifier",
+      "location" : [ 3, 1, 3, 1 ]
+    } ],
+    "value" : {
+      "kind" : "BinaryExpr",
+      "location" : [ 3, 5, 3, 28 ],
+      "left" : {
+        "kind" : "BinaryExpr",
+        "location" : [ 3, 5, 3, 23 ],
+        "left" : {
+          "kind" : "BinaryExpr",
+          "location" : [ 3, 5, 3, 10 ],
+          "left" : {
+            "operator" : "-",
+            "operand" : {
+              "name" : "a",
+              "kind" : "Identifier",
+              "location" : [ 3, 6, 3, 6 ]
+            },
+            "kind" : "UnaryExpr",
+            "location" : [ 3, 5, 3, 6 ]
+          },
+          "operator" : "*",
+          "right" : {
+            "name" : "b",
+            "kind" : "Identifier",
+            "location" : [ 3, 10, 3, 10 ]
+          }
+        },
+        "operator" : "+",
+        "right" : {
+          "kind" : "BinaryExpr",
+          "location" : [ 3, 14, 3, 23 ],
+          "left" : {
+            "kind" : "BinaryExpr",
+            "location" : [ 3, 14, 3, 19 ],
+            "left" : {
+              "name" : "c",
+              "kind" : "Identifier",
+              "location" : [ 3, 14, 3, 14 ]
+            },
+            "operator" : "//",
+            "right" : {
+              "name" : "d",
+              "kind" : "Identifier",
+              "location" : [ 3, 19, 3, 19 ]
+            }
+          },
+          "operator" : "%",
+          "right" : {
+            "name" : "e",
+            "kind" : "Identifier",
+            "location" : [ 3, 23, 3, 23 ]
+          }
+        }
+      },
+      "operator" : "-",
+      "right" : {
+        "operator" : "-",
+        "operand" : {
+          "name" : "f",
+          "kind" : "Identifier",
+          "location" : [ 3, 28, 3, 28 ]
+        },
+        "kind" : "UnaryExpr",
+        "location" : [ 3, 27, 3, 28 ]
+      }
+    },
+    "kind" : "AssignStmt",
+    "location" : [ 3, 1, 3, 28 ]
+  }, {
+    "targets" : [ {
+      "name" : "w",
+      "kind" : "Identifier",
+      "location" : [ 4, 1, 4, 1 ]
+    } ],
+    "value" : {
+      "list" : {
+        "method" : {
+          "object" : {
+            "list" : {
+              "object" : {
+                "name" : "a",
+                "kind" : "Identifier",
+                "location" : [ 4, 5, 4, 5 ]
+              },
+              "member" : {
+                "name" : "b",
+                "kind" : "Identifier",
+                "location" : [ 4, 7, 4, 7 ]
+              },
+              "kind" : "MemberExpr",
+              "location" : [ 4, 5, 4, 7 ]
+            },
+            "index" : {
+              "name" : "c",
+              "kind" : "Identifier",
+              "location" : [ 4, 9, 4, 9 ]
+            },
+            "kind" : "IndexExpr",
+            "location" : [ 4, 5, 4, 10 ]
+          },
+          "member" : {
+            "name" : "d",
+            "kind" : "Identifier",
+            "location" : [ 4, 12, 4, 12 ]
+          },
+          "kind" : "MemberExpr",
+          "location" : [ 4, 5, 4, 12 ]
+        },
+        "args" : [ {
+          "name" : "e",
+          "kind" : "Identifier",
+          "location" : [ 4, 14, 4, 14 ]
+        } ],
+        "kind" : "MethodCallExpr",
+        "location" : [ 4, 5, 4, 15 ]
+      },
+      "index" : {
+        "name" : "f",
+        "kind" : "Identifier",
+        "location" : [ 4, 17, 4, 17 ]
+      },
+      "kind" : "IndexExpr",
+      "location" : [ 4, 5, 4, 18 ]
+    },
+    "kind" : "AssignStmt",
+    "location" : [ 4, 1, 4, 18 ]
+  }, {
+    "targets" : [ {
+      "name" : "v",
+      "kind" : "Identifier",
+      "location" : [ 5, 1, 5, 1 ]
+    } ],
+    "value" : {
+      "condition" : {
+        "name" : "b",
+        "kind" : "Identifier",
+        "location" : [ 5, 10, 5, 10 ]
+      },
+      "thenExpr" : {
+        "name" : "a",
+        "kind" : "Identifier",
+        "location" : [ 5, 5, 5, 5 ]
+      },
+      "elseExpr" : {
+        "condition" : {
+          "name" : "d",
+          "kind" : "Identifier",
+          "location" : [ 5, 22, 5, 22 ]
+        },
+        "thenExpr" : {
+          "name" : "c",
+          "kind" : "Identifier",
+          "location" : [ 5, 17, 5, 17 ]
+        },
+        "elseExpr" : {
+          "name" : "e",
+          "kind" : "Identifier",
+          "location" : [ 5, 29, 5, 29 ]
+        },
+        "kind" : "IfExpr",
+        "location" : [ 5, 17, 5, 29 ]
+      },
+      "kind" : "IfExpr",
+      "location" : [ 5, 5, 5, 29 ]
+    },
+    "kind" : "AssignStmt",
+    "location" : [ 5, 1, 5, 29 ]
+  }, {
+    "targets" : [ {
+      "name" : "u",
+      "kind" : "Identifier",
+      "location" : [ 6, 1, 6, 1 ]
+    } ],
+    "value" : {
+      "condition" : {
+        "name" : "d",
+        "kind" : "Identifier",
+        "location" : [ 6, 24, 6, 24 ]
+      },
+      "thenExpr" : {
+        "condition" : {
+          "name" : "b",
+          "kind" : "Identifier",
+          "location" : [ 6, 11, 6, 11 ]
+        },
+        "thenExpr" : {
+          "name" : "a",
+          "kind" : "Identifier",
+          "location" : [ 6, 6, 6, 6 ]
+        },
+        "elseExpr" : {
+          "name" : "c",
+          "kind" : "Identifier",
+          "location" : [ 6, 18, 6, 18 ]
+        },
+        "kind" : "IfExpr",
+        "location" : [ 6, 6, 6, 18 ]
+      },
+      "elseExpr" : {
+        "name" : "e",
+        "kind" : "Identifier",
+        "location" : [ 6, 31, 6, 31 ]
+      },
+      "kind" : "IfExpr",
+      "location" : [ 6, 5, 6, 31 ]
+    },
+    "kind" : "AssignStmt",
+    "location" : [ 6, 1, 6, 31 ]
+  }, {
+    "targets" : [ {
+      "name" : "t",
+      "kind" : "Identifier",
+      "location" : [ 7, 1, 7, 1 ]
+    } ],
+    "value" : {
+      "kind" : "BinaryExpr",
+      "location" : [ 7, 5, 7, 17 ],
+      "left" : {
+        "kind" : "BinaryExpr",
+        "location" : [ 7, 5, 7, 9 ],
+        "left" : {
+          "name" : "a",
+          "kind" : "Identifier",
+          "location" : [ 7, 5, 7, 5 ]
+        },
+        "operator" : "+",
+        "right" : {
+          "name" : "b",
+          "kind" : "Identifier",
+          "location" : [ 7, 9, 7, 9 ]
+        }
+      },
+      "operator" : "<",
+      "right" : {
+        "kind" : "BinaryExpr",
+        "location" : [ 7, 13, 7, 17 ],
+        "left" : {
+          "name" : "c",
+          "kind" : "Identifier",
+          "location" : [ 7, 13, 7, 13 ]
+        },
+        "operator" : "*",
+        "right" : {
+          "name" : "d",
+          "kind" : "Identifier",
+          "location" : [ 7, 17, 7, 17 ]
+        }
+      }
+    },
+    "kind" : "AssignStmt",
+    "location" : [ 7, 1, 7, 17 ]
+  } ],
+  "errors" : {
+    "errors" : [ ],
+    "kind" : "Errors",
+    "location" : [ 0, 0, 0, 0 ]
+  },
+  "kind" : "Program",
+  "location" : [ 1, 1, 7, 18 ]
+}

@@ -1,0 +1,24 @@
+{
+  "declarations" : [ ],
+  "statements" : [ {
+    "expr" : {
+      "name" : "foo",
+      "kind" : "Identifier",
+      "location" : [ 3, 8, 3, 10 ]
+    },
+    "kind" : "ExprStmt",
+    "location" : [ 3, 8, 3, 10 ]
+  } ],
+  "errors" : {
+    "errors" : [ {
+      "message" : "Parse error near token RESERVED: lambda",
+      "syntax" : true,
+      "kind" : "CompilerError",
+      "location" : [ 2, 1, 2, 6 ]
+    } ],
+    "kind" : "Errors",
+    "location" : [ 0, 0, 0, 0 ]
+  },
+  "kind" : "Program",
+  "location" : [ 3, 8, 3, 11 ]
+}

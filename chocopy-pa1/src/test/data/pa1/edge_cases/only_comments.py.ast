@@ -1,0 +1,11 @@
+{
+  "declarations" : [ ],
+  "statements" : [ ],
+  "errors" : {
+    "errors" : [ ],
+    "kind" : "Errors",
+    "location" : [ 0, 0, 0, 0 ]
+  },
+  "kind" : "Program",
+  "location" : [ 0, 0, 0, 0 ]
+}

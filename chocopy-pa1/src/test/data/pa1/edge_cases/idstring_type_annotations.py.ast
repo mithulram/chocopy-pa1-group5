@@ -1,0 +1,125 @@
+{
+  "declarations" : [ {
+    "name" : {
+      "name" : "Node",
+      "kind" : "Identifier",
+      "location" : [ 1, 7, 1, 10 ]
+    },
+    "superClass" : {
+      "name" : "object",
+      "kind" : "Identifier",
+      "location" : [ 1, 12, 1, 17 ]
+    },
+    "declarations" : [ {
+      "var" : {
+        "identifier" : {
+          "name" : "next",
+          "kind" : "Identifier",
+          "location" : [ 2, 5, 2, 8 ]
+        },
+        "type" : {
+          "kind" : "ClassType",
+          "location" : [ 2, 11, 2, 16 ],
+          "className" : "Node"
+        },
+        "kind" : "TypedVar",
+        "location" : [ 2, 5, 2, 16 ]
+      },
+      "value" : {
+        "kind" : "NoneLiteral",
+        "location" : [ 2, 20, 2, 23 ]
+      },
+      "kind" : "VarDef",
+      "location" : [ 2, 5, 2, 23 ]
+    }, {
+      "name" : {
+        "name" : "link",
+        "kind" : "Identifier",
+        "location" : [ 3, 9, 3, 12 ]
+      },
+      "params" : [ {
+        "identifier" : {
+          "name" : "self",
+          "kind" : "Identifier",
+          "location" : [ 3, 14, 3, 17 ]
+        },
+        "type" : {
+          "kind" : "ClassType",
+          "location" : [ 3, 20, 3, 25 ],
+          "className" : "Node"
+        },
+        "kind" : "TypedVar",
+        "location" : [ 3, 14, 3, 25 ]
+      }, {
+        "identifier" : {
+          "name" : "other",
+          "kind" : "Identifier",
+          "location" : [ 3, 28, 3, 32 ]
+        },
+        "type" : {
+          "kind" : "ClassType",
+          "location" : [ 3, 35, 3, 40 ],
+          "className" : "Node"
+        },
+        "kind" : "TypedVar",
+        "location" : [ 3, 28, 3, 40 ]
+      } ],
+      "returnType" : {
+        "kind" : "ClassType",
+        "location" : [ 3, 46, 3, 51 ],
+        "className" : "Node"
+      },
+      "declarations" : [ ],
+      "statements" : [ {
+        "value" : {
+          "name" : "other",
+          "kind" : "Identifier",
+          "location" : [ 4, 16, 4, 20 ]
+        },
+        "kind" : "ReturnStmt",
+        "location" : [ 4, 9, 4, 20 ]
+      } ],
+      "kind" : "FuncDef",
+      "location" : [ 3, 5, 4, 21 ]
+    } ],
+    "kind" : "ClassDef",
+    "location" : [ 1, 1, 5, 0 ]
+  }, {
+    "var" : {
+      "identifier" : {
+        "name" : "xs",
+        "kind" : "Identifier",
+        "location" : [ 5, 1, 5, 2 ]
+      },
+      "type" : {
+        "elementType" : {
+          "elementType" : {
+            "kind" : "ClassType",
+            "location" : [ 5, 7, 5, 12 ],
+            "className" : "Node"
+          },
+          "kind" : "ListType",
+          "location" : [ 5, 6, 5, 13 ]
+        },
+        "kind" : "ListType",
+        "location" : [ 5, 5, 5, 14 ]
+      },
+      "kind" : "TypedVar",
+      "location" : [ 5, 1, 5, 14 ]
+    },
+    "value" : {
+      "kind" : "NoneLiteral",
+      "location" : [ 5, 18, 5, 21 ]
+    },
+    "kind" : "VarDef",
+    "location" : [ 5, 1, 5, 21 ]
+  } ],
+  "statements" : [ ],
+  "errors" : {
+    "errors" : [ ],
+    "kind" : "Errors",
+    "location" : [ 0, 0, 0, 0 ]
+  },
+  "kind" : "Program",
+  "location" : [ 1, 1, 5, 22 ]
+}

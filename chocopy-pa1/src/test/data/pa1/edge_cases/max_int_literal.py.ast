@@ -1,0 +1,64 @@
+{
+  "declarations" : [ {
+    "var" : {
+      "identifier" : {
+        "name" : "x",
+        "kind" : "Identifier",
+        "location" : [ 1, 1, 1, 1 ]
+      },
+      "type" : {
+        "kind" : "ClassType",
+        "location" : [ 1, 3, 1, 5 ],
+        "className" : "int"
+      },
+      "kind" : "TypedVar",
+      "location" : [ 1, 1, 1, 5 ]
+    },
+    "value" : {
+      "value" : 2147483647,
+      "kind" : "IntegerLiteral",
+      "location" : [ 1, 9, 1, 18 ]
+    },
+    "kind" : "VarDef",
+    "location" : [ 1, 1, 1, 18 ]
+  } ],
+  "statements" : [ {
+    "targets" : [ {
+      "name" : "y",
+      "kind" : "Identifier",
+      "location" : [ 2, 1, 2, 1 ]
+    } ],
+    "value" : {
+      "operator" : "-",
+      "operand" : {
+        "value" : 2147483647,
+        "kind" : "IntegerLiteral",
+        "location" : [ 2, 6, 2, 15 ]
+      },
+      "kind" : "UnaryExpr",
+      "location" : [ 2, 5, 2, 15 ]
+    },
+    "kind" : "AssignStmt",
+    "location" : [ 2, 1, 2, 15 ]
+  }, {
+    "targets" : [ {
+      "name" : "z",
+      "kind" : "Identifier",
+      "location" : [ 3, 1, 3, 1 ]
+    } ],
+    "value" : {
+      "value" : 0,
+      "kind" : "IntegerLiteral",
+      "location" : [ 3, 5, 3, 5 ]
+    },
+    "kind" : "AssignStmt",
+    "location" : [ 3, 1, 3, 5 ]
+  } ],
+  "errors" : {
+    "errors" : [ ],
+    "kind" : "Errors",
+    "location" : [ 0, 0, 0, 0 ]
+  },
+  "kind" : "Program",
+  "location" : [ 1, 1, 3, 6 ]
+}

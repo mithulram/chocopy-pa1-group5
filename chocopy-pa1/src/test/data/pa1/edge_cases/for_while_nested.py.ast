@@ -1,0 +1,98 @@
+{
+  "declarations" : [ ],
+  "statements" : [ {
+    "identifier" : {
+      "name" : "i",
+      "kind" : "Identifier",
+      "location" : [ 1, 5, 1, 5 ]
+    },
+    "iterable" : {
+      "elements" : [ {
+        "value" : 1,
+        "kind" : "IntegerLiteral",
+        "location" : [ 1, 11, 1, 11 ]
+      }, {
+        "value" : 2,
+        "kind" : "IntegerLiteral",
+        "location" : [ 1, 14, 1, 14 ]
+      }, {
+        "value" : 3,
+        "kind" : "IntegerLiteral",
+        "location" : [ 1, 17, 1, 17 ]
+      } ],
+      "kind" : "ListExpr",
+      "location" : [ 1, 10, 1, 18 ]
+    },
+    "body" : [ {
+      "condition" : {
+        "kind" : "BinaryExpr",
+        "location" : [ 2, 11, 2, 15 ],
+        "left" : {
+          "name" : "i",
+          "kind" : "Identifier",
+          "location" : [ 2, 11, 2, 11 ]
+        },
+        "operator" : ">",
+        "right" : {
+          "value" : 0,
+          "kind" : "IntegerLiteral",
+          "location" : [ 2, 15, 2, 15 ]
+        }
+      },
+      "body" : [ {
+        "targets" : [ {
+          "name" : "i",
+          "kind" : "Identifier",
+          "location" : [ 3, 9, 3, 9 ]
+        } ],
+        "value" : {
+          "kind" : "BinaryExpr",
+          "location" : [ 3, 13, 3, 17 ],
+          "left" : {
+            "name" : "i",
+            "kind" : "Identifier",
+            "location" : [ 3, 13, 3, 13 ]
+          },
+          "operator" : "-",
+          "right" : {
+            "value" : 1,
+            "kind" : "IntegerLiteral",
+            "location" : [ 3, 17, 3, 17 ]
+          }
+        },
+        "kind" : "AssignStmt",
+        "location" : [ 3, 9, 3, 17 ]
+      }, {
+        "condition" : {
+          "kind" : "BinaryExpr",
+          "location" : [ 4, 12, 4, 20 ],
+          "left" : {
+            "name" : "i",
+            "kind" : "Identifier",
+            "location" : [ 4, 12, 4, 12 ]
+          },
+          "operator" : "is",
+          "right" : {
+            "kind" : "NoneLiteral",
+            "location" : [ 4, 17, 4, 20 ]
+          }
+        },
+        "thenBody" : [ ],
+        "elseBody" : [ ],
+        "kind" : "IfStmt",
+        "location" : [ 4, 9, 6, 1 ]
+      } ],
+      "kind" : "WhileStmt",
+      "location" : [ 2, 5, 6, 2 ]
+    } ],
+    "kind" : "ForStmt",
+    "location" : [ 1, 1, 6, 3 ]
+  } ],
+  "errors" : {
+    "errors" : [ ],
+    "kind" : "Errors",
+    "location" : [ 0, 0, 0, 0 ]
+  },
+  "kind" : "Program",
+  "location" : [ 1, 1, 6, 3 ]
+}

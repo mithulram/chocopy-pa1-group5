@@ -1,0 +1,98 @@
+{
+  "declarations" : [ {
+    "name" : {
+      "name" : "f",
+      "kind" : "Identifier",
+      "location" : [ 1, 5, 1, 5 ]
+    },
+    "params" : [ ],
+    "returnType" : {
+      "kind" : "ClassType",
+      "location" : [ 1, 12, 1, 14 ],
+      "className" : "int"
+    },
+    "declarations" : [ ],
+    "statements" : [ {
+      "condition" : {
+        "value" : true,
+        "kind" : "BooleanLiteral",
+        "location" : [ 2, 11, 2, 14 ]
+      },
+      "body" : [ {
+        "condition" : {
+          "name" : "x",
+          "kind" : "Identifier",
+          "location" : [ 3, 12, 3, 12 ]
+        },
+        "thenBody" : [ {
+          "identifier" : {
+            "name" : "i",
+            "kind" : "Identifier",
+            "location" : [ 4, 17, 4, 17 ]
+          },
+          "iterable" : {
+            "name" : "y",
+            "kind" : "Identifier",
+            "location" : [ 4, 22, 4, 22 ]
+          },
+          "body" : [ {
+            "value" : {
+              "value" : 1,
+              "kind" : "IntegerLiteral",
+              "location" : [ 5, 24, 5, 24 ]
+            },
+            "kind" : "ReturnStmt",
+            "location" : [ 5, 17, 5, 24 ]
+          } ],
+          "kind" : "ForStmt",
+          "location" : [ 4, 13, 6, 4 ]
+        } ],
+        "elseBody" : [ ],
+        "kind" : "IfStmt",
+        "location" : [ 3, 9, 6, 4 ]
+      } ],
+      "kind" : "WhileStmt",
+      "location" : [ 2, 5, 6, 4 ]
+    }, {
+      "value" : {
+        "value" : 0,
+        "kind" : "IntegerLiteral",
+        "location" : [ 6, 12, 6, 12 ]
+      },
+      "kind" : "ReturnStmt",
+      "location" : [ 6, 5, 6, 12 ]
+    } ],
+    "kind" : "FuncDef",
+    "location" : [ 1, 1, 6, 13 ]
+  } ],
+  "statements" : [ {
+    "expr" : {
+      "function" : {
+        "name" : "print",
+        "kind" : "Identifier",
+        "location" : [ 7, 1, 7, 5 ]
+      },
+      "args" : [ {
+        "function" : {
+          "name" : "f",
+          "kind" : "Identifier",
+          "location" : [ 7, 7, 7, 7 ]
+        },
+        "args" : [ ],
+        "kind" : "CallExpr",
+        "location" : [ 7, 7, 7, 9 ]
+      } ],
+      "kind" : "CallExpr",
+      "location" : [ 7, 1, 7, 10 ]
+    },
+    "kind" : "ExprStmt",
+    "location" : [ 7, 1, 7, 10 ]
+  } ],
+  "errors" : {
+    "errors" : [ ],
+    "kind" : "Errors",
+    "location" : [ 0, 0, 0, 0 ]
+  },
+  "kind" : "Program",
+  "location" : [ 1, 1, 7, 11 ]
+}

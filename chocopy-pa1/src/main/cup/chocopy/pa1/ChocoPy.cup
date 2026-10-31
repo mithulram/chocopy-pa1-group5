@@ -1,0 +1,727 @@
+import java.util.ArrayList;
+import java.util.List;
+
+import java_cup.runtime.*;
+import chocopy.common.astnodes.*;
+
+/* The following code section is copied verbatim to the generated
+ * parser class. */
+parser code {:
+
+    /* The following fields and methods deal with error reporting
+     * Avoid changing these unless you know what you are doing. */
+
+    /** Node that accumulates error messages to be added to the Program
+     *  node produced as a result. */
+    public final Errors errors = new Errors(new ArrayList<>());
+
+    /** Return the Program node that results from parsing the stream of
+     *  tokens produced by lexical analysis.  In the case of syntax errors,
+     *  the program may be empty, but will have error messages. */
+    public Program parseProgram(boolean debug) {
+        try {
+            Symbol result = debug ? debug_parse() : parse();
+            if (result == null || !(result.value instanceof Program)) {
+                return new Program(new Location(0, 0), new Location(0, 0),
+                                   new ArrayList<Declaration>(),
+                                   new ArrayList<Stmt>(),
+                                   errors);
+            } else {
+                return (Program) result.value;
+            }
+        } catch (RuntimeException excp) {
+            throw excp;
+        } catch (Exception excp) {
+            String msg =
+                String.format("Internal parser error detected: %s%n", excp);
+            throw new AssertionError(msg);
+        }
+    }
+
+    @Override
+    public SymbolFactory getSymbolFactory() {
+        return ((ChocoPyLexer) getScanner()).symbolFactory;
+    }
+
+    @Override
+    public void syntax_error(Symbol cur_token) {
+        String token = symbl_name_from_id(cur_token.sym);
+        /* We ask the lexer for the text of this exact token instead of
+         * calling yytext(). yytext() only holds the most recent match,
+         * which is wrong for string literals, for DEDENTs (their
+         * whitespace was pushed back), and for tokens made up at EOF. */
+        String text = ((ChocoPyLexer) getScanner()).getTokenText(cur_token);
+        errors.syntaxError(
+            ((ComplexSymbolFactory.ComplexSymbol) cur_token).xleft,
+            ((ComplexSymbolFactory.ComplexSymbol) cur_token).xright,
+            "Parse error near token %s: %s", token, text);
+    }
+
+    @Override
+    public void unrecovered_syntax_error(Symbol cur_token) {
+        /* Do not die */
+    }
+
+    /** Turn on "default reductions" in consistent states (the default in
+     *  Bison). A state is consistent when its only possible action is one
+     *  particular reduction. We let that reduction happen for *any*
+     *  lookahead, not just the expected ones.
+     *
+     *  Why: take "z = 5" followed by a line that starts with "lambda".
+     *  Reducing "stmt ::= simple_stmt NEWLINE" needs a valid lookahead,
+     *  and RESERVED is not one. So CUP reported the error before the
+     *  statement was reduced, and error recovery then popped the finished
+     *  "z = 5" off the stack. That statement silently disappeared from
+     *  the AST. With a default reduction, "z = 5" is safely in the
+     *  statement list before the error is detected.
+     *
+     *  This cannot change *where* an error is reported. In a consistent
+     *  state the parser would have done this reduction anyway on every
+     *  valid token. Reductions consume no input, so the error is still
+     *  detected at the same token. CUP has this as the -compact_red
+     *  option, but that is set in pom.xml, which we may not edit, so we
+     *  patch the table here instead.
+     *
+     *  Table format (java_cup.runtime.lr_parser): every row is a list of
+     *  (symbol, action) pairs ending with a default pair (-1, action).
+     *  Action > 0 is a shift, < 0 a reduce, and 0 an error. */
+    private void enableDefaultReductions() {
+        short[][] table = action_tab.clone();     /* don't touch the shared static table */
+        for (int state = 0; state < table.length; state++) {
+            short[] row = table[state];
+            int defaultPair = row.length - 2;
+            if (defaultPair < 0 || row[defaultPair] != -1 || row[defaultPair + 1] != 0) {
+                continue;                          /* row already has a default action */
+            }
+            short onlyReduce = 0;
+            boolean consistent = true;
+            for (int i = 0; i < defaultPair && consistent; i += 2) {
+                short action = row[i + 1];
+                if (action > 0) {
+                    consistent = false;            /* a shift: the lookahead matters */
+                } else if (action < 0) {
+                    if (onlyReduce == 0) {
+                        onlyReduce = action;
+                    } else if (onlyReduce != action) {
+                        consistent = false;        /* two different reductions */
+                    }
+                }
+            }
+            if (consistent && onlyReduce != 0) {
+                short[] patched = row.clone();
+                patched[defaultPair + 1] = onlyReduce;
+                table[state] = patched;
+            }
+        }
+        action_tab = table;
+    }
+:}
+
+/* Runs once at the start of every parse, right after CUP loads its tables. */
+init with {:
+    enableDefaultReductions();
+:};
+
+
+/**************************************************************************
+ * ChocoPy grammar (PA1, group 5)
+ *
+ * The rules follow Figure 3 of the ChocoPy reference manual closely. The
+ * nonterminal names are the manual's names wherever possible, so the two
+ * can be read side by side.
+ *
+ * Three design decisions shape this file:
+ *
+ *  1. Source locations. A node spans from the left edge of its leftmost
+ *     symbol to the right edge of its rightmost symbol (CUP gives us
+ *     <name>xleft / <name>xright for every labelled symbol). We copied the
+ *     reference's conventions exactly. A compound statement ends at the
+ *     DEDENT that closes its block. A function or class ends where its
+ *     body ends.
+ *
+ *  2. Precedence. Operator precedence and associativity are declared with
+ *     CUP's `precedence` lines below, not by stacking one nonterminal per
+ *     precedence level. The manual's split into `expr` (logical
+ *     operators, if-else) and `cexpr` (everything else) is kept. That
+ *     split is what makes `True == not False` a syntax error, exactly as
+ *     the manual requires.
+ *
+ *  3. Error recovery, in three layers:
+ *     a. Lists (top-level declarations, statements, block statements,
+ *        class members) have an `error` alternative, so one bad line does
+ *        not swallow the rest of the program. The lists are separate
+ *        nonterminals on purpose: two `error` rules that are live in the
+ *        same state would be a reduce/reduce conflict (see top_decls).
+ *     b. Anchored rules for the usual mistakes: a bad initial value in a
+ *        var_def, and a broken def/class/if/elif/while/for header. They
+ *        always resume at the next NEWLINE, which is guaranteed to come
+ *        soon. If an anchor never shows up, CUP gives up on the whole
+ *        file, so we only anchor on NEWLINE.
+ *     c. Default reductions in consistent states (enableDefaultReductions
+ *        above), so a finished statement is not thrown away when the
+ *        *next* line starts with a bad token.
+ *     Adding error rules never moves the *first* reported error (that is
+ *     the one that is graded): `error` never occurs in the input, so the
+ *     set of valid token sequences stays the same. We checked the effect
+ *     with tools/recovery_quality.py.
+ **************************************************************************/
+
+
+/* The following code section is copied verbatim to the class that performs
+ * production-rule actions. */
+action code {:
+
+    /** Return a mutable list initially containing the single value ITEM. */
+    <T> List<T> single(T item) {
+        List<T> list = new ArrayList<>();
+        if (item != null) {
+            list.add(item);
+        }
+        return list;
+    }
+
+    /** If ITEM is non-null, appends it to the end of LIST.  Then returns
+     *  LIST. */
+    <T> List<T> combine(List<T> list, T item) {
+        if (item != null) {
+            list.add(item);
+        }
+        return list;
+    }
+
+    /** Return a mutable empty list. */
+    <T> List<T> empty() {
+        return new ArrayList<T>();
+    }
+
+    /** Return the leftmost non-whitespace location in NODES, or null if NODES
+     *  is empty.  Assumes that the nodes of NODES are ordered in increasing
+     *  order of location, from left to right. */
+    ComplexSymbolFactory.Location getLeft(List<? extends Node> nodes) {
+        if (nodes.isEmpty()) {
+            return null;
+        }
+        Node first = nodes.get(0);
+        return new ComplexSymbolFactory.Location(first.getLocation()[0],
+                                                 first.getLocation()[1]);
+    }
+
+    /** Shorthand for an Identifier node built from an IDENTIFIER token. */
+    Identifier identifier(ComplexSymbolFactory.Location left,
+                          ComplexSymbolFactory.Location right, String name) {
+        return new Identifier(left, right, name);
+    }
+
+:}
+
+
+/* ------------------------------------------------------------------------
+ * Terminals
+ *
+ * The names match the token names of the reference lexer, so our error
+ * messages ("Parse error near token EQEQ: ==") read the same.
+ * ------------------------------------------------------------------------ */
+
+/* Line structure, produced by the lexer from whitespace. */
+terminal NEWLINE, INDENT, DEDENT;
+
+/* Identifiers and literals. The semantic value of a string token is its
+ * contents, with escape sequences already applied. */
+terminal String  IDENTIFIER, STRING, IDSTRING;
+terminal Integer INTEGER;
+
+/* Keywords. */
+terminal CLASS, DEF, GLOBAL, NONLOCAL, PASS, RETURN;
+terminal IF, ELIF, ELSE, WHILE, FOR, IN;
+terminal NONE, TRUE, FALSE;
+
+/* Operators. Their semantic value is their spelling, which is exactly
+ * what BinaryExpr / UnaryExpr store in `operator`. */
+terminal String PLUS, MINUS, TIMES, IDIV, MOD;
+terminal String EQEQ, NEQ, LT, GT, LEQ, GEQ, IS;
+terminal String AND, OR, NOT;
+
+/* Delimiters. */
+terminal EQ, LPAREN, RPAREN, LINDEX, RINDEX, COMMA, COLON, DOT, ARROW;
+
+/* Python keywords that ChocoPy reserves but never uses, and anything the
+ * lexer could not make sense of. Neither appears in a rule, so meeting
+ * one is always a syntax error. */
+terminal RESERVED;
+terminal UNRECOGNIZED;
+
+/* Never produced by the lexer. It only exists to give unary minus its own
+ * precedence level (via %prec), separate from binary minus. */
+terminal UMINUS;
+
+
+/* ------------------------------------------------------------------------
+ * Nonterminals
+ * ------------------------------------------------------------------------ */
+
+non terminal Program              program;
+
+/* Declarations */
+non terminal List<Declaration>    top_decls, func_decls;
+non terminal List<Declaration>    class_body, class_members;
+non terminal Declaration          class_member;
+non terminal ClassDef             class_def, class_header;
+non terminal FuncDef              func_def, func_header;
+non terminal TypeAnnotation       return_type_opt;
+non terminal List<TypedVar>       typed_var_list_opt, typed_var_list;
+non terminal TypedVar             typed_var;
+non terminal TypeAnnotation       type;
+non terminal VarDef               var_def;
+non terminal GlobalDecl           global_decl;
+non terminal NonLocalDecl         nonlocal_decl;
+
+/* Statements */
+non terminal List<Stmt>           stmt_list;
+non terminal List<Stmt>           block, block_stmts, elif_else;
+non terminal Stmt                 stmt, simple_stmt;
+non terminal Expr                 if_header, elif_header, while_header;
+non terminal ForStmt              for_header;
+non terminal List<Expr>           assign_targets;
+non terminal Expr                 target;
+
+/* Expressions */
+non terminal Expr                 expr, cexpr;
+non terminal Literal              literal;
+non terminal MemberExpr           member_expr;
+non terminal IndexExpr            index_expr;
+non terminal List<Expr>           expr_list_opt, expr_list;
+
+
+/* ------------------------------------------------------------------------
+ * Precedence, lowest to highest (manual, section 4.1)
+ *
+ * When CUP is unsure whether to shift or reduce, it compares the
+ * precedence of the rule (that of its last terminal, or its %prec
+ * terminal) with the precedence of the lookahead token.
+ * ------------------------------------------------------------------------ */
+
+precedence right    IF, ELSE;                        /* a if c else b    */
+precedence left     OR;
+precedence left     AND;
+precedence right    NOT;                             /* prefix, unary    */
+precedence nonassoc EQEQ, NEQ, LT, GT, LEQ, GEQ, IS; /* a < b < c: error */
+precedence left     PLUS, MINUS;
+precedence left     TIMES, IDIV, MOD;
+precedence right    UMINUS;                          /* prefix, unary    */
+precedence left     DOT, LINDEX;                     /* a.b[c].d         */
+
+
+start with program;
+
+
+/**************************************************************************
+ *  PROGRAM
+ *
+ *  program ::= [var_def | func_def | class_def]* stmt*
+ **************************************************************************/
+
+/* A program runs from its first declaration or statement to the very last
+ * token consumed (a NEWLINE or a DEDENT): [1,1,36,24] for coverage.py.
+ *
+ * We take these positions from the grammar *symbols*, not from the AST
+ * nodes. A `pass` statement leaves no node, yet a program that starts
+ * with `pass` still starts at that `pass`. (Lists that may start out
+ * empty, like top_decls, get their left edge from their first node
+ * instead, since an empty production has no position of its own.) */
+program ::= top_decls:d stmt_list:s
+        {: RESULT = new Program(d.isEmpty() ? sxleft : getLeft(d), sxright,
+                                d, s, errors); :}
+        | top_decls:d
+        {:
+            /* An empty file gets the location [0,0,0,0]. */
+            RESULT = new Program(getLeft(d), d.isEmpty() ? null : dxright,
+                                 d, empty(), errors);
+        :}
+        ;
+
+/* Top-level declarations.
+ *
+ * The `error` alternative lets the parser recover from a broken var/func/
+ * class definition and keep parsing the declarations that follow.
+ *
+ * Why not one shared "line ::= error" rule for both declarations and
+ * statements? In the state right after top_decls, both a declaration and
+ * a statement may start. Two `error` rules that are both live there would
+ * end in the same LR state with two completed items: a reduce/reduce
+ * conflict. So statement lists only accept `error` *after* their first
+ * statement (stmt_list ::= stmt_list error). An error on the very first
+ * statement is absorbed here, which does no harm. */
+top_decls ::= /* empty */                  {: RESULT = empty(); :}
+            | top_decls:l var_def:v        {: RESULT = combine(l, v); :}
+            | top_decls:l func_def:f       {: RESULT = combine(l, f); :}
+            | top_decls:l class_def:c      {: RESULT = combine(l, c); :}
+            | top_decls:l error            {: RESULT = l; :}
+            ;
+
+
+/**************************************************************************
+ *  CLASSES
+ *
+ *  class_def  ::= class ID ( ID ) : NEWLINE INDENT class_body DEDENT
+ *  class_body ::= pass NEWLINE | [var_def | func_def]+
+ **************************************************************************/
+
+class_def ::= class_header:h NEWLINE INDENT class_body:b DEDENT
+        {:
+            /* Like the reference, a class ends where its body ends. If the
+             * last member is a method, that is the DEDENT that closes the
+             * method's body. */
+            RESULT = new ClassDef(hxleft, bxright, h.name, h.superClass, b);
+        :}
+
+        /* Recovery: a broken header, e.g. "class Thing:" with no superclass.
+         * Throw away the rest of the header line. If an indented body
+         * follows, parse it too (so its errors are reported and its DEDENT
+         * is consumed here), but build no node. The anchor is the NEWLINE,
+         * which always comes soon. An anchor that may never come (e.g.
+         * "COLON NEWLINE INDENT") made CUP search to the end of the file
+         * and give up parsing completely. */
+        | CLASS IDENTIFIER error NEWLINE                              {: RESULT = null; :}
+        | CLASS IDENTIFIER error NEWLINE INDENT class_body DEDENT     {: RESULT = null; :}
+        ;
+
+/* "class ID ( ID ) :" on its own, returned as a ClassDef without members;
+ * class_def rebuilds it once the body is known. Why a separate header
+ * nonterminal? Once the header is reduced, its internal states leave the
+ * parser stack. So an error further down (after the whole body) can never
+ * be caught by the "CLASS IDENTIFIER error" rule above, which would throw
+ * the complete class away. The same idea is used for def/if/elif/while/for. */
+class_header ::= CLASS:c IDENTIFIER:name LPAREN IDENTIFIER:sup RPAREN COLON:colon
+        {: RESULT = new ClassDef(cxleft, colonxright,
+                                 identifier(namexleft, namexright, name),
+                                 identifier(supxleft, supxright, sup),
+                                 empty()); :}
+        ;
+
+class_body ::= PASS NEWLINE                {: RESULT = empty(); :}
+             | class_members:m             {: RESULT = m; :}
+             ;
+
+class_members ::= class_member:m                   {: RESULT = single(m); :}
+                | class_members:l class_member:m   {: RESULT = combine(l, m); :}
+                | error                            {: RESULT = empty(); :}
+                | class_members:l error            {: RESULT = l; :}
+                ;
+
+class_member ::= var_def:v                 {: RESULT = v; :}
+               | func_def:f                {: RESULT = f; :}
+               ;
+
+
+/**************************************************************************
+ *  FUNCTIONS
+ *
+ *  func_def  ::= def ID ( [typed_var [, typed_var]*]? ) [-> type]? :
+ *                NEWLINE INDENT func_body DEDENT
+ *  func_body ::= [global_decl | nonlocal_decl | var_def | func_def]* stmt+
+ *
+ *  func_body is spelled out inline as `func_decls block_stmts`. That way
+ *  the action can see both halves without a helper "pair" class.
+ **************************************************************************/
+
+func_def ::= func_header:h NEWLINE INDENT func_decls:decls block_stmts:body DEDENT
+        {: RESULT = new FuncDef(hxleft, bodyxright, h.name, h.params, h.returnType,
+                                decls, body); :}
+
+        /* Recovery: a broken header, e.g. a parameter without a type. As
+         * for classes, it is anchored on the NEWLINE, and the body is
+         * optional. */
+        | DEF IDENTIFIER error NEWLINE                                      {: RESULT = null; :}
+        | DEF IDENTIFIER error NEWLINE INDENT func_decls block_stmts DEDENT {: RESULT = null; :}
+        ;
+
+/* "def ID ( params ) [-> type] :" on its own, returned as a FuncDef with
+ * an empty body (see class_header for why it is a separate rule). */
+func_header ::= DEF:d IDENTIFIER:name LPAREN typed_var_list_opt:params RPAREN
+                return_type_opt:ret COLON:c
+        {:
+            /* With no "-> type", the AST still needs a return type: the
+             * reference uses ClassType "<None>" at the colon's location. */
+            TypeAnnotation returnType = (ret != null)
+                ? ret
+                : new ClassType(cxleft, cxright, "<None>");
+            RESULT = new FuncDef(dxleft, cxright,
+                                 identifier(namexleft, namexright, name),
+                                 params, returnType, empty(), empty());
+        :}
+        ;
+
+return_type_opt ::= /* empty */            {: RESULT = null; :}
+                  | ARROW type:t           {: RESULT = t; :}
+                  ;
+
+typed_var_list_opt ::= /* empty */         {: RESULT = empty(); :}
+                     | typed_var_list:l    {: RESULT = l; :}
+                     ;
+
+typed_var_list ::= typed_var:v                            {: RESULT = single(v); :}
+                 | typed_var_list:l COMMA typed_var:v     {: RESULT = combine(l, v); :}
+                 ;
+
+/* Declarations at the top of a function body.
+ *
+ * Unlike top_decls, this list has no `error` alternative. A function's
+ * statements are block_stmts, which may *begin* with `error`, and two
+ * error rules that are live in the same state would conflict. We need the
+ * error in the statements: if the only statement of a function is broken,
+ * an error rule in func_decls made CUP resume in declaration mode, throw
+ * away the function's DEDENT, and finally give up at end of file (the
+ * reference does exactly this). A bad initial value is still handled by
+ * the var_def recovery rule. */
+func_decls ::= /* empty */                 {: RESULT = empty(); :}
+             | func_decls:l global_decl:g  {: RESULT = combine(l, g); :}
+             | func_decls:l nonlocal_decl:n {: RESULT = combine(l, n); :}
+             | func_decls:l var_def:v      {: RESULT = combine(l, v); :}
+             | func_decls:l func_def:f     {: RESULT = combine(l, f); :}
+             ;
+
+global_decl ::= GLOBAL:g IDENTIFIER:name NEWLINE
+        {: RESULT = new GlobalDecl(gxleft, namexright,
+                                   identifier(namexleft, namexright, name)); :}
+        ;
+
+nonlocal_decl ::= NONLOCAL:n IDENTIFIER:name NEWLINE
+        {: RESULT = new NonLocalDecl(nxleft, namexright,
+                                     identifier(namexleft, namexright, name)); :}
+        ;
+
+
+/**************************************************************************
+ *  VARIABLES AND TYPES
+ *
+ *  var_def   ::= typed_var = literal NEWLINE
+ *  typed_var ::= ID : type
+ *  type      ::= ID | IDSTRING | [ type ]
+ **************************************************************************/
+
+var_def ::= typed_var:v EQ literal:value NEWLINE
+        {: RESULT = new VarDef(vxleft, valuexright, v, value); :}
+
+        /* Recovery: an initial value that is not a literal, e.g.
+         * "x:int = 1 + 2". Throw away the rest of the line and stay in
+         * declaration mode. Without this rule, recovery resumed on the
+         * leftover "2" as if it were a statement, and every declaration
+         * after it then failed too (statements may not come before
+         * declarations). */
+        | typed_var EQ error NEWLINE
+        {: RESULT = null; :}
+        ;
+
+typed_var ::= IDENTIFIER:name COLON type:t
+        {: RESULT = new TypedVar(namexleft, txright,
+                                 identifier(namexleft, namexright, name), t); :}
+        ;
+
+type ::= IDENTIFIER:name                   {: RESULT = new ClassType(namexleft, namexright, name); :}
+       | IDSTRING:name                     {: RESULT = new ClassType(namexleft, namexright, name); :}
+       | LINDEX:l type:t RINDEX:r          {: RESULT = new ListType(lxleft, rxright, t); :}
+       ;
+
+
+/**************************************************************************
+ *  STATEMENTS
+ *
+ *  stmt  ::= simple_stmt NEWLINE
+ *          | if expr : block [elif expr : block]* [else : block]?
+ *          | while expr : block
+ *          | for ID in expr : block
+ *  block ::= NEWLINE INDENT stmt+ DEDENT
+ **************************************************************************/
+
+/* Statement list of the program body. */
+stmt_list ::= stmt:s                       {: RESULT = single(s); :}
+            | stmt_list:l stmt:s           {: RESULT = combine(l, s); :}
+            | stmt_list:l error            {: RESULT = l; :}
+            ;
+
+/* The statements of an indented block or a function body. Unlike
+ * stmt_list, this list may begin with `error`: here no other list competes
+ * for the error token. So a mistake on the first line of a block stays
+ * inside that block. */
+block_stmts ::= stmt:s                     {: RESULT = single(s); :}
+              | error                      {: RESULT = empty(); :}
+              | block_stmts:l stmt:s       {: RESULT = combine(l, s); :}
+              | block_stmts:l error        {: RESULT = l; :}
+              ;
+
+/* The block's symbol ends at its DEDENT, and compound statements take
+ * their right edge from it: `if` ends at [19,1,19,8] when the next line
+ * is indented by 8. That is the reference's convention. */
+block ::= NEWLINE INDENT block_stmts:s DEDENT   {: RESULT = s; :}
+        ;
+
+stmt ::= simple_stmt:s NEWLINE             {: RESULT = s; :}
+
+       | if_header:cond block:then
+        {: RESULT = new IfStmt(condxleft, thenxright, cond, then, empty()); :}
+
+       /* With an elif/else part, the statement ends where that part ends.
+        * We check whether the part is there by grammar rule, not by
+        * whether its list is empty: "else: pass" gives an empty list, but
+        * the if-statement still ends at the else-block's DEDENT. */
+       | if_header:cond block:then elif_else:rest
+        {: RESULT = new IfStmt(condxleft, restxright, cond, then, rest); :}
+
+       | while_header:cond block:body
+        {: RESULT = new WhileStmt(condxleft, bodyxright, cond, body); :}
+
+       | for_header:h block:body
+        {: RESULT = new ForStmt(hxleft, bodyxright, h.identifier, h.iterable, body); :}
+
+       /* Recovery: a broken header of a compound statement, e.g.
+        * "while x $ y:" or a missing colon. Throw away the rest of the line.
+        * If an indented block follows, parse it as well, so that it does
+        * not turn up as an unexpected INDENT and cause more errors. Either
+        * way, the statement is dropped. The block is optional, because a
+        * line that only *looks* broken (such as "if $ fy = 1", a typo for
+        * "iffy") has no block at all. */
+       | IF error NEWLINE                                         {: RESULT = null; :}
+       | IF error NEWLINE INDENT block_stmts DEDENT               {: RESULT = null; :}
+       | IF error NEWLINE INDENT block_stmts DEDENT elif_else     {: RESULT = null; :}
+       | WHILE error NEWLINE                                      {: RESULT = null; :}
+       | WHILE error NEWLINE INDENT block_stmts DEDENT            {: RESULT = null; :}
+       | FOR error NEWLINE                                        {: RESULT = null; :}
+       | FOR error NEWLINE INDENT block_stmts DEDENT              {: RESULT = null; :}
+       ;
+
+/* The headers of compound statements: keyword, condition, colon. Their
+ * symbol starts at the keyword, so "condxleft" above is the position of
+ * `if` / `while` / `for`. They are separate nonterminals for the reason
+ * given at class_header. */
+if_header ::= IF expr:cond COLON           {: RESULT = cond; :}
+            ;
+
+elif_header ::= ELIF expr:cond COLON       {: RESULT = cond; :}
+              ;
+
+while_header ::= WHILE expr:cond COLON     {: RESULT = cond; :}
+               ;
+
+/* Returned as a ForStmt with an empty body; the stmt rule rebuilds it. */
+for_header ::= FOR:f IDENTIFIER:name IN expr:iter COLON:c
+        {: RESULT = new ForStmt(fxleft, cxright,
+                                identifier(namexleft, namexright, name),
+                                iter, empty()); :}
+             ;
+
+/* elif is syntactic sugar: "if a: X elif b: Y else: Z" has the same AST as
+ * "if a: X else: (if b: Y else: Z)". This rule builds the else-body: an
+ * else-block, or a list holding one nested IfStmt for an elif. The rule is
+ * right-recursive, so a chain of elifs nests to the right, one level per
+ * elif. */
+elif_else ::= ELSE COLON block:b           {: RESULT = b; :}
+            | elif_header:cond block:then
+            {: RESULT = single(new IfStmt(condxleft, thenxright, cond, then, empty())); :}
+            | elif_header:cond block:then elif_else:rest
+            {: RESULT = single(new IfStmt(condxleft, restxright, cond, then, rest)); :}
+            /* Recovery for a broken elif header, as in stmt. */
+            | ELIF error NEWLINE                                      {: RESULT = empty(); :}
+            | ELIF error NEWLINE INDENT block_stmts DEDENT            {: RESULT = empty(); :}
+            | ELIF error NEWLINE INDENT block_stmts DEDENT elif_else  {: RESULT = empty(); :}
+            ;
+
+/* `pass` builds no AST node. combine()/single() drop the null, so a pass
+ * simply disappears from the statement list (as in the reference). */
+simple_stmt ::= PASS                       {: RESULT = null; :}
+              | expr:e                     {: RESULT = new ExprStmt(exleft, exright, e); :}
+              | RETURN:r                   {: RESULT = new ReturnStmt(rxleft, rxright, null); :}
+              | RETURN:r expr:e            {: RESULT = new ReturnStmt(rxleft, exright, e); :}
+              | assign_targets:ts expr:e   {: RESULT = new AssignStmt(tsxleft, exright, ts, e); :}
+              ;
+
+/* [target =]+ expr. With "a = b = 1", both a and b are targets. An LR
+ * parser can see this without backtracking: after an identifier, a
+ * following "=" means it was a target, anything else means it was an
+ * expression. */
+assign_targets ::= target:t EQ                     {: RESULT = single(t); :}
+                 | assign_targets:l target:t EQ    {: RESULT = combine(l, t); :}
+                 ;
+
+target ::= IDENTIFIER:name                 {: RESULT = identifier(namexleft, namexright, name); :}
+         | member_expr:m                   {: RESULT = m; :}
+         | index_expr:i                    {: RESULT = i; :}
+         ;
+
+
+/**************************************************************************
+ *  EXPRESSIONS
+ *
+ *  expr  ::= cexpr | not expr | expr [and | or] expr | expr if expr else expr
+ *  cexpr ::= ID | literal | [ [expr [, expr]*]? ] | ( expr )
+ *          | member_expr | index_expr | member_expr ( args ) | ID ( args )
+ *          | cexpr bin_op cexpr | - cexpr
+ **************************************************************************/
+
+expr ::= cexpr:e                           {: RESULT = e; :}
+       | NOT:op expr:e                     {: RESULT = new UnaryExpr(opxleft, exright, op, e); :}
+       | expr:l AND:op expr:r              {: RESULT = new BinaryExpr(lxleft, rxright, l, op, r); :}
+       | expr:l OR:op expr:r               {: RESULT = new BinaryExpr(lxleft, rxright, l, op, r); :}
+       /* "a if c else b" stores the condition first in the AST, but the
+        * source text starts with a, so the location starts with a too. */
+       | expr:a IF expr:cond ELSE expr:b   {: RESULT = new IfExpr(axleft, bxright, cond, a, b); :}
+       ;
+
+cexpr ::= IDENTIFIER:name                  {: RESULT = identifier(namexleft, namexright, name); :}
+        | literal:l                        {: RESULT = l; :}
+        | LINDEX:l expr_list_opt:es RINDEX:r
+                                           {: RESULT = new ListExpr(lxleft, rxright, es); :}
+        /* Parentheses only group. The inner node keeps its own location
+         * without the parentheses (the "(-foo)" example in the spec). */
+        | LPAREN expr:e RPAREN             {: RESULT = e; :}
+        | member_expr:m                    {: RESULT = m; :}
+        | index_expr:i                     {: RESULT = i; :}
+        | member_expr:m LPAREN expr_list_opt:args RPAREN:r
+                                           {: RESULT = new MethodCallExpr(mxleft, rxright, m, args); :}
+        | IDENTIFIER:name LPAREN expr_list_opt:args RPAREN:r
+                                           {: RESULT = new CallExpr(namexleft, rxright,
+                                                  identifier(namexleft, namexright, name), args); :}
+
+        /* Binary operators. Precedence and associativity come from the
+         * precedence declarations above. */
+        | cexpr:l PLUS:op cexpr:r          {: RESULT = new BinaryExpr(lxleft, rxright, l, op, r); :}
+        | cexpr:l MINUS:op cexpr:r         {: RESULT = new BinaryExpr(lxleft, rxright, l, op, r); :}
+        | cexpr:l TIMES:op cexpr:r         {: RESULT = new BinaryExpr(lxleft, rxright, l, op, r); :}
+        | cexpr:l IDIV:op cexpr:r          {: RESULT = new BinaryExpr(lxleft, rxright, l, op, r); :}
+        | cexpr:l MOD:op cexpr:r           {: RESULT = new BinaryExpr(lxleft, rxright, l, op, r); :}
+        | cexpr:l EQEQ:op cexpr:r          {: RESULT = new BinaryExpr(lxleft, rxright, l, op, r); :}
+        | cexpr:l NEQ:op cexpr:r           {: RESULT = new BinaryExpr(lxleft, rxright, l, op, r); :}
+        | cexpr:l LT:op cexpr:r            {: RESULT = new BinaryExpr(lxleft, rxright, l, op, r); :}
+        | cexpr:l GT:op cexpr:r            {: RESULT = new BinaryExpr(lxleft, rxright, l, op, r); :}
+        | cexpr:l LEQ:op cexpr:r           {: RESULT = new BinaryExpr(lxleft, rxright, l, op, r); :}
+        | cexpr:l GEQ:op cexpr:r           {: RESULT = new BinaryExpr(lxleft, rxright, l, op, r); :}
+        | cexpr:l IS:op cexpr:r            {: RESULT = new BinaryExpr(lxleft, rxright, l, op, r); :}
+
+        /* Unary minus binds tighter than * but looser than . and [] */
+        | MINUS:op cexpr:e                 {: RESULT = new UnaryExpr(opxleft, exright, op, e); :}
+                                           %prec UMINUS
+        ;
+
+member_expr ::= cexpr:obj DOT IDENTIFIER:name
+        {: RESULT = new MemberExpr(objxleft, namexright, obj,
+                                   identifier(namexleft, namexright, name)); :}
+        ;
+
+index_expr ::= cexpr:list LINDEX expr:index RINDEX:r
+        {: RESULT = new IndexExpr(listxleft, rxright, list, index); :}
+        ;
+
+expr_list_opt ::= /* empty */              {: RESULT = empty(); :}
+                | expr_list:l              {: RESULT = l; :}
+                ;
+
+expr_list ::= expr:e                       {: RESULT = single(e); :}
+            | expr_list:l COMMA expr:e     {: RESULT = combine(l, e); :}
+            ;
+
+literal ::= NONE:n                         {: RESULT = new NoneLiteral(nxleft, nxright); :}
+          | TRUE:t                         {: RESULT = new BooleanLiteral(txleft, txright, true); :}
+          | FALSE:f                        {: RESULT = new BooleanLiteral(fxleft, fxright, false); :}
+          | INTEGER:i                      {: RESULT = new IntegerLiteral(ixleft, ixright, i); :}
+          | STRING:s                       {: RESULT = new StringLiteral(sxleft, sxright, s); :}
+          | IDSTRING:s                     {: RESULT = new StringLiteral(sxleft, sxright, s); :}
+          ;

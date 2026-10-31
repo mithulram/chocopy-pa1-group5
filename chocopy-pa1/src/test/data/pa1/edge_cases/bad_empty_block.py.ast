@@ -1,0 +1,33 @@
+{
+  "declarations" : [ ],
+  "statements" : [ {
+    "expr" : {
+      "function" : {
+        "name" : "print",
+        "kind" : "Identifier",
+        "location" : [ 2, 1, 2, 5 ]
+      },
+      "args" : [ {
+        "value" : 1,
+        "kind" : "IntegerLiteral",
+        "location" : [ 2, 7, 2, 7 ]
+      } ],
+      "kind" : "CallExpr",
+      "location" : [ 2, 1, 2, 8 ]
+    },
+    "kind" : "ExprStmt",
+    "location" : [ 2, 1, 2, 8 ]
+  } ],
+  "errors" : {
+    "errors" : [ {
+      "message" : "Parse error near token IDENTIFIER: print",
+      "syntax" : true,
+      "kind" : "CompilerError",
+      "location" : [ 2, 1, 2, 5 ]
+    } ],
+    "kind" : "Errors",
+    "location" : [ 0, 0, 0, 0 ]
+  },
+  "kind" : "Program",
+  "location" : [ 2, 1, 2, 9 ]
+}

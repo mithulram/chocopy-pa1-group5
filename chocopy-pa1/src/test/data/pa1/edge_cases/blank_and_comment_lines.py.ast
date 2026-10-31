@@ -1,0 +1,60 @@
+{
+  "declarations" : [ ],
+  "statements" : [ {
+    "targets" : [ {
+      "name" : "x",
+      "kind" : "Identifier",
+      "location" : [ 4, 1, 4, 1 ]
+    } ],
+    "value" : {
+      "value" : 1,
+      "kind" : "IntegerLiteral",
+      "location" : [ 4, 5, 4, 5 ]
+    },
+    "kind" : "AssignStmt",
+    "location" : [ 4, 1, 4, 5 ]
+  }, {
+    "condition" : {
+      "name" : "x",
+      "kind" : "Identifier",
+      "location" : [ 7, 4, 7, 4 ]
+    },
+    "thenBody" : [ {
+      "targets" : [ {
+        "name" : "y",
+        "kind" : "Identifier",
+        "location" : [ 10, 5, 10, 5 ]
+      } ],
+      "value" : {
+        "value" : 2,
+        "kind" : "IntegerLiteral",
+        "location" : [ 10, 9, 10, 9 ]
+      },
+      "kind" : "AssignStmt",
+      "location" : [ 10, 5, 10, 9 ]
+    } ],
+    "elseBody" : [ ],
+    "kind" : "IfStmt",
+    "location" : [ 7, 1, 13, 0 ]
+  }, {
+    "targets" : [ {
+      "name" : "z",
+      "kind" : "Identifier",
+      "location" : [ 13, 1, 13, 1 ]
+    } ],
+    "value" : {
+      "value" : 3,
+      "kind" : "IntegerLiteral",
+      "location" : [ 13, 5, 13, 5 ]
+    },
+    "kind" : "AssignStmt",
+    "location" : [ 13, 1, 13, 5 ]
+  } ],
+  "errors" : {
+    "errors" : [ ],
+    "kind" : "Errors",
+    "location" : [ 0, 0, 0, 0 ]
+  },
+  "kind" : "Program",
+  "location" : [ 4, 1, 13, 6 ]
+}

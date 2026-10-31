@@ -1,0 +1,157 @@
+{
+  "declarations" : [ {
+    "name" : {
+      "name" : "outer",
+      "kind" : "Identifier",
+      "location" : [ 1, 5, 1, 9 ]
+    },
+    "params" : [ ],
+    "returnType" : {
+      "kind" : "ClassType",
+      "location" : [ 1, 16, 1, 18 ],
+      "className" : "int"
+    },
+    "declarations" : [ {
+      "var" : {
+        "identifier" : {
+          "name" : "x",
+          "kind" : "Identifier",
+          "location" : [ 2, 5, 2, 5 ]
+        },
+        "type" : {
+          "kind" : "ClassType",
+          "location" : [ 2, 7, 2, 9 ],
+          "className" : "int"
+        },
+        "kind" : "TypedVar",
+        "location" : [ 2, 5, 2, 9 ]
+      },
+      "value" : {
+        "value" : 0,
+        "kind" : "IntegerLiteral",
+        "location" : [ 2, 13, 2, 13 ]
+      },
+      "kind" : "VarDef",
+      "location" : [ 2, 5, 2, 13 ]
+    }, {
+      "name" : {
+        "name" : "inner",
+        "kind" : "Identifier",
+        "location" : [ 3, 9, 3, 13 ]
+      },
+      "params" : [ {
+        "identifier" : {
+          "name" : "y",
+          "kind" : "Identifier",
+          "location" : [ 3, 15, 3, 15 ]
+        },
+        "type" : {
+          "kind" : "ClassType",
+          "location" : [ 3, 18, 3, 20 ],
+          "className" : "int"
+        },
+        "kind" : "TypedVar",
+        "location" : [ 3, 15, 3, 20 ]
+      } ],
+      "returnType" : {
+        "kind" : "ClassType",
+        "location" : [ 3, 26, 3, 31 ],
+        "className" : "object"
+      },
+      "declarations" : [ {
+        "variable" : {
+          "name" : "x",
+          "kind" : "Identifier",
+          "location" : [ 4, 18, 4, 18 ]
+        },
+        "kind" : "NonLocalDecl",
+        "location" : [ 4, 9, 4, 18 ]
+      }, {
+        "variable" : {
+          "name" : "g",
+          "kind" : "Identifier",
+          "location" : [ 5, 16, 5, 16 ]
+        },
+        "kind" : "GlobalDecl",
+        "location" : [ 5, 9, 5, 16 ]
+      }, {
+        "var" : {
+          "identifier" : {
+            "name" : "z",
+            "kind" : "Identifier",
+            "location" : [ 6, 9, 6, 9 ]
+          },
+          "type" : {
+            "elementType" : {
+              "kind" : "ClassType",
+              "location" : [ 6, 12, 6, 14 ],
+              "className" : "int"
+            },
+            "kind" : "ListType",
+            "location" : [ 6, 11, 6, 15 ]
+          },
+          "kind" : "TypedVar",
+          "location" : [ 6, 9, 6, 15 ]
+        },
+        "value" : {
+          "kind" : "NoneLiteral",
+          "location" : [ 6, 19, 6, 22 ]
+        },
+        "kind" : "VarDef",
+        "location" : [ 6, 9, 6, 22 ]
+      } ],
+      "statements" : [ {
+        "targets" : [ {
+          "name" : "x",
+          "kind" : "Identifier",
+          "location" : [ 7, 9, 7, 9 ]
+        } ],
+        "value" : {
+          "name" : "y",
+          "kind" : "Identifier",
+          "location" : [ 7, 13, 7, 13 ]
+        },
+        "kind" : "AssignStmt",
+        "location" : [ 7, 9, 7, 13 ]
+      } ],
+      "kind" : "FuncDef",
+      "location" : [ 3, 5, 7, 14 ]
+    } ],
+    "statements" : [ {
+      "expr" : {
+        "function" : {
+          "name" : "inner",
+          "kind" : "Identifier",
+          "location" : [ 8, 5, 8, 9 ]
+        },
+        "args" : [ {
+          "value" : 1,
+          "kind" : "IntegerLiteral",
+          "location" : [ 8, 11, 8, 11 ]
+        } ],
+        "kind" : "CallExpr",
+        "location" : [ 8, 5, 8, 12 ]
+      },
+      "kind" : "ExprStmt",
+      "location" : [ 8, 5, 8, 12 ]
+    }, {
+      "value" : {
+        "name" : "x",
+        "kind" : "Identifier",
+        "location" : [ 9, 12, 9, 12 ]
+      },
+      "kind" : "ReturnStmt",
+      "location" : [ 9, 5, 9, 12 ]
+    } ],
+    "kind" : "FuncDef",
+    "location" : [ 1, 1, 9, 13 ]
+  } ],
+  "statements" : [ ],
+  "errors" : {
+    "errors" : [ ],
+    "kind" : "Errors",
+    "location" : [ 0, 0, 0, 0 ]
+  },
+  "kind" : "Program",
+  "location" : [ 1, 1, 10, 1 ]
+}

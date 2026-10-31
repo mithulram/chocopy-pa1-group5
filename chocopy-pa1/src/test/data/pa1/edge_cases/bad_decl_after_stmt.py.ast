@@ -1,0 +1,42 @@
+{
+  "declarations" : [ ],
+  "statements" : [ {
+    "targets" : [ {
+      "name" : "x",
+      "kind" : "Identifier",
+      "location" : [ 1, 1, 1, 1 ]
+    } ],
+    "value" : {
+      "value" : 1,
+      "kind" : "IntegerLiteral",
+      "location" : [ 1, 5, 1, 5 ]
+    },
+    "kind" : "AssignStmt",
+    "location" : [ 1, 1, 1, 5 ]
+  }, {
+    "targets" : [ {
+      "name" : "int",
+      "kind" : "Identifier",
+      "location" : [ 2, 3, 2, 5 ]
+    } ],
+    "value" : {
+      "value" : 2,
+      "kind" : "IntegerLiteral",
+      "location" : [ 2, 9, 2, 9 ]
+    },
+    "kind" : "AssignStmt",
+    "location" : [ 2, 3, 2, 9 ]
+  } ],
+  "errors" : {
+    "errors" : [ {
+      "message" : "Parse error near token COLON: :",
+      "syntax" : true,
+      "kind" : "CompilerError",
+      "location" : [ 2, 2, 2, 2 ]
+    } ],
+    "kind" : "Errors",
+    "location" : [ 0, 0, 0, 0 ]
+  },
+  "kind" : "Program",
+  "location" : [ 1, 1, 2, 10 ]
+}

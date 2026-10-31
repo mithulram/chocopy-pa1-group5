@@ -1,0 +1,90 @@
+{
+  "declarations" : [ ],
+  "statements" : [ {
+    "condition" : {
+      "name" : "a",
+      "kind" : "Identifier",
+      "location" : [ 1, 4, 1, 4 ]
+    },
+    "thenBody" : [ {
+      "targets" : [ {
+        "name" : "x",
+        "kind" : "Identifier",
+        "location" : [ 2, 5, 2, 5 ]
+      } ],
+      "value" : {
+        "value" : 1,
+        "kind" : "IntegerLiteral",
+        "location" : [ 2, 9, 2, 9 ]
+      },
+      "kind" : "AssignStmt",
+      "location" : [ 2, 5, 2, 9 ]
+    } ],
+    "elseBody" : [ {
+      "condition" : {
+        "name" : "b",
+        "kind" : "Identifier",
+        "location" : [ 3, 6, 3, 6 ]
+      },
+      "thenBody" : [ {
+        "targets" : [ {
+          "name" : "x",
+          "kind" : "Identifier",
+          "location" : [ 4, 5, 4, 5 ]
+        } ],
+        "value" : {
+          "value" : 2,
+          "kind" : "IntegerLiteral",
+          "location" : [ 4, 9, 4, 9 ]
+        },
+        "kind" : "AssignStmt",
+        "location" : [ 4, 5, 4, 9 ]
+      } ],
+      "elseBody" : [ {
+        "condition" : {
+          "name" : "c",
+          "kind" : "Identifier",
+          "location" : [ 5, 6, 5, 6 ]
+        },
+        "thenBody" : [ {
+          "targets" : [ {
+            "name" : "x",
+            "kind" : "Identifier",
+            "location" : [ 6, 5, 6, 5 ]
+          } ],
+          "value" : {
+            "value" : 3,
+            "kind" : "IntegerLiteral",
+            "location" : [ 6, 9, 6, 9 ]
+          },
+          "kind" : "AssignStmt",
+          "location" : [ 6, 5, 6, 9 ]
+        } ],
+        "elseBody" : [ {
+          "condition" : {
+            "name" : "d",
+            "kind" : "Identifier",
+            "location" : [ 7, 6, 7, 6 ]
+          },
+          "thenBody" : [ ],
+          "elseBody" : [ ],
+          "kind" : "IfStmt",
+          "location" : [ 7, 1, 11, 1 ]
+        } ],
+        "kind" : "IfStmt",
+        "location" : [ 5, 1, 11, 1 ]
+      } ],
+      "kind" : "IfStmt",
+      "location" : [ 3, 1, 11, 1 ]
+    } ],
+    "kind" : "IfStmt",
+    "location" : [ 1, 1, 11, 1 ]
+  } ],
+  "errors" : {
+    "errors" : [ ],
+    "kind" : "Errors",
+    "location" : [ 0, 0, 0, 0 ]
+  },
+  "kind" : "Program",
+  "location" : [ 1, 1, 11, 1 ]
+}

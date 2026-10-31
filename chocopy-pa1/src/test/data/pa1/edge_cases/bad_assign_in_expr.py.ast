@@ -1,0 +1,16 @@
+{
+  "declarations" : [ ],
+  "statements" : [ ],
+  "errors" : {
+    "errors" : [ {
+      "message" : "Parse error near token EQ: =",
+      "syntax" : true,
+      "kind" : "CompilerError",
+      "location" : [ 1, 10, 1, 10 ]
+    } ],
+    "kind" : "Errors",
+    "location" : [ 0, 0, 0, 0 ]
+  },
+  "kind" : "Program",
+  "location" : [ 1, 8, 1, 8 ]
+}

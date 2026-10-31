@@ -1,0 +1,83 @@
+{
+  "declarations" : [ ],
+  "statements" : [ {
+    "condition" : {
+      "name" : "a",
+      "kind" : "Identifier",
+      "location" : [ 1, 4, 1, 4 ]
+    },
+    "thenBody" : [ {
+      "targets" : [ {
+        "name" : "x",
+        "kind" : "Identifier",
+        "location" : [ 2, 2, 2, 2 ]
+      } ],
+      "value" : {
+        "value" : 1,
+        "kind" : "IntegerLiteral",
+        "location" : [ 2, 6, 2, 6 ]
+      },
+      "kind" : "AssignStmt",
+      "location" : [ 2, 2, 2, 6 ]
+    }, {
+      "targets" : [ {
+        "name" : "y",
+        "kind" : "Identifier",
+        "location" : [ 3, 9, 3, 9 ]
+      } ],
+      "value" : {
+        "value" : 2,
+        "kind" : "IntegerLiteral",
+        "location" : [ 3, 13, 3, 13 ]
+      },
+      "kind" : "AssignStmt",
+      "location" : [ 3, 9, 3, 13 ]
+    }, {
+      "condition" : {
+        "name" : "b",
+        "kind" : "Identifier",
+        "location" : [ 4, 5, 4, 5 ]
+      },
+      "thenBody" : [ {
+        "targets" : [ {
+          "name" : "z",
+          "kind" : "Identifier",
+          "location" : [ 5, 6, 5, 6 ]
+        } ],
+        "value" : {
+          "value" : 3,
+          "kind" : "IntegerLiteral",
+          "location" : [ 5, 10, 5, 10 ]
+        },
+        "kind" : "AssignStmt",
+        "location" : [ 5, 6, 5, 10 ]
+      } ],
+      "elseBody" : [ ],
+      "kind" : "IfStmt",
+      "location" : [ 4, 2, 6, 0 ]
+    } ],
+    "elseBody" : [ ],
+    "kind" : "IfStmt",
+    "location" : [ 1, 1, 6, 0 ]
+  }, {
+    "targets" : [ {
+      "name" : "w",
+      "kind" : "Identifier",
+      "location" : [ 6, 1, 6, 1 ]
+    } ],
+    "value" : {
+      "value" : 4,
+      "kind" : "IntegerLiteral",
+      "location" : [ 6, 5, 6, 5 ]
+    },
+    "kind" : "AssignStmt",
+    "location" : [ 6, 1, 6, 5 ]
+  } ],
+  "errors" : {
+    "errors" : [ ],
+    "kind" : "Errors",
+    "location" : [ 0, 0, 0, 0 ]
+  },
+  "kind" : "Program",
+  "location" : [ 1, 1, 6, 6 ]
+}

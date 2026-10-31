@@ -1,0 +1,47 @@
+{
+  "declarations" : [ ],
+  "statements" : [ {
+    "expr" : {
+      "operator" : "-",
+      "operand" : {
+        "value" : 1,
+        "kind" : "IntegerLiteral",
+        "location" : [ 1, 10, 1, 10 ]
+      },
+      "kind" : "UnaryExpr",
+      "location" : [ 1, 9, 1, 10 ]
+    },
+    "kind" : "ExprStmt",
+    "location" : [ 1, 9, 1, 10 ]
+  }, {
+    "targets" : [ {
+      "name" : "int",
+      "kind" : "Identifier",
+      "location" : [ 2, 3, 2, 5 ]
+    } ],
+    "value" : {
+      "value" : 2,
+      "kind" : "IntegerLiteral",
+      "location" : [ 2, 9, 2, 9 ]
+    },
+    "kind" : "AssignStmt",
+    "location" : [ 2, 3, 2, 9 ]
+  } ],
+  "errors" : {
+    "errors" : [ {
+      "message" : "Parse error near token MINUS: -",
+      "syntax" : true,
+      "kind" : "CompilerError",
+      "location" : [ 1, 9, 1, 9 ]
+    }, {
+      "message" : "Parse error near token COLON: :",
+      "syntax" : true,
+      "kind" : "CompilerError",
+      "location" : [ 2, 2, 2, 2 ]
+    } ],
+    "kind" : "Errors",
+    "location" : [ 0, 0, 0, 0 ]
+  },
+  "kind" : "Program",
+  "location" : [ 1, 9, 2, 10 ]
+}

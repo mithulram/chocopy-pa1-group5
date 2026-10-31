@@ -1,0 +1,37 @@
+{
+  "declarations" : [ ],
+  "statements" : [ {
+    "expr" : {
+      "name" : "c",
+      "kind" : "Identifier",
+      "location" : [ 1, 9, 1, 9 ]
+    },
+    "kind" : "ExprStmt",
+    "location" : [ 1, 9, 1, 9 ]
+  }, {
+    "targets" : [ {
+      "name" : "ok",
+      "kind" : "Identifier",
+      "location" : [ 2, 1, 2, 2 ]
+    } ],
+    "value" : {
+      "value" : 1,
+      "kind" : "IntegerLiteral",
+      "location" : [ 2, 6, 2, 6 ]
+    },
+    "kind" : "AssignStmt",
+    "location" : [ 2, 1, 2, 6 ]
+  } ],
+  "errors" : {
+    "errors" : [ {
+      "message" : "Parse error near token LT: <",
+      "syntax" : true,
+      "kind" : "CompilerError",
+      "location" : [ 1, 7, 1, 7 ]
+    } ],
+    "kind" : "Errors",
+    "location" : [ 0, 0, 0, 0 ]
+  },
+  "kind" : "Program",
+  "location" : [ 1, 9, 2, 7 ]
+}

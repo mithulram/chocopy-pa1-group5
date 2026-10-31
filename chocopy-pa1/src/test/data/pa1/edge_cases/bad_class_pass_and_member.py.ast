@@ -1,0 +1,30 @@
+{
+  "declarations" : [ {
+    "name" : {
+      "name" : "A",
+      "kind" : "Identifier",
+      "location" : [ 1, 7, 1, 7 ]
+    },
+    "superClass" : {
+      "name" : "object",
+      "kind" : "Identifier",
+      "location" : [ 1, 9, 1, 14 ]
+    },
+    "declarations" : [ ],
+    "kind" : "ClassDef",
+    "location" : [ 1, 1, 2, 14 ]
+  } ],
+  "statements" : [ ],
+  "errors" : {
+    "errors" : [ {
+      "message" : "Parse error near token PASS: pass",
+      "syntax" : true,
+      "kind" : "CompilerError",
+      "location" : [ 3, 5, 3, 8 ]
+    } ],
+    "kind" : "Errors",
+    "location" : [ 0, 0, 0, 0 ]
+  },
+  "kind" : "Program",
+  "location" : [ 1, 1, 4, 1 ]
+}

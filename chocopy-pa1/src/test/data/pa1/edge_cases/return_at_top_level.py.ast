@@ -1,0 +1,33 @@
+{
+  "declarations" : [ ],
+  "statements" : [ {
+    "value" : null,
+    "kind" : "ReturnStmt",
+    "location" : [ 1, 1, 1, 6 ]
+  }, {
+    "value" : {
+      "kind" : "BinaryExpr",
+      "location" : [ 2, 8, 2, 12 ],
+      "left" : {
+        "value" : 1,
+        "kind" : "IntegerLiteral",
+        "location" : [ 2, 8, 2, 8 ]
+      },
+      "operator" : "+",
+      "right" : {
+        "value" : 2,
+        "kind" : "IntegerLiteral",
+        "location" : [ 2, 12, 2, 12 ]
+      }
+    },
+    "kind" : "ReturnStmt",
+    "location" : [ 2, 1, 2, 12 ]
+  } ],
+  "errors" : {
+    "errors" : [ ],
+    "kind" : "Errors",
+    "location" : [ 0, 0, 0, 0 ]
+  },
+  "kind" : "Program",
+  "location" : [ 1, 1, 2, 13 ]
+}
