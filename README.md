@@ -27,7 +27,7 @@ presentation: slides, the challenge log, Q&A preparation, the team prep pack, an
 | Error recovery, one real mistake per program (346 programs) | **1.37** errors per mistake (reference 2.01), **0** aborted parses (reference 3) |
 | Submission zip | built and tested from a clean unzip by `scripts/make_submission.sh` |
 
-Open points and review tasks are tracked as [GitHub issues](../../issues), grouped by the milestones
+Open points and review tasks are tracked as [GitHub issues](https://github.com/mithulram/chocopy-pa1-group5/issues), grouped by the milestones
 **PA1 submission** and **PA1 presentation**.
 
 ---
