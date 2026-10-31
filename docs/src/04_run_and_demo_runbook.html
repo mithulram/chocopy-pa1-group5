@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>PA1 Run and Demo Runbook</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="cover">
+  <div class="kicker">Compiler Construction Lab · PA1 · Group 5</div>
+  <h1>Run &amp; Demo Runbook</h1>
+  <div class="sub">From a fresh laptop to a running live demo: install, open, build, test, demo, and what to do when something breaks.</div>
+  <div class="meta">Tested on macOS with OpenJDK 27, Maven 3.9.15, Python 3.14. On Windows, replace <code>:</code> with <code>;</code> in every <code>-cp</code>.</div>
+</div>
+
+<h2>1. What you need</h2>
+<table>
+<tr><th>Tool</th><th>Version</th><th>macOS</th><th>Windows</th><th>Linux (Debian/Ubuntu)</th></tr>
+<tr><td>JDK</td><td>8 or newer</td><td><code>brew install openjdk</code></td><td><code>winget install EclipseAdoptium.Temurin.21.JDK</code></td><td><code>sudo apt install openjdk-21-jdk</code></td></tr>
+<tr><td>Maven</td><td>3.3.9 or newer</td><td><code>brew install maven</code></td><td><code>winget install Apache.Maven</code> (or unzip it and add <code>bin</code> to PATH)</td><td><code>sudo apt install maven</code></td></tr>
+<tr><td>Python 3</td><td>any 3.x</td><td><code>brew install python</code></td><td><code>winget install Python.Python.3.12</code></td><td>usually preinstalled</td></tr>
+<tr><td>IDE (optional)</td><td></td><td colspan="3">IntelliJ IDEA (Community is enough) or VS Code with the "Extension Pack for Java"</td></tr>
+</table>
+<p>Check: <code>java -version</code>, <code>mvn -v</code>, <code>python3 --version</code> (on Windows <code>python --version</code>). Python is only needed for our
+test tools and the demo, not for building or grading.</p>
+
+<h2>2. Folder layout</h2>
+<pre><code>PA1/                                (= the GitHub repository root)
+├── README.md                       &lt;- start here: overview, status, how to review
+├── chocopy-pa1/                    &lt;- the Maven project (this is what we submit)
+│   ├── pom.xml                     (provided, do not edit)
+│   ├── chocopy-ref.jar             (reference implementation)
+│   ├── README.md                   (our write-up is at the end)
+│   ├── src/main/jflex/chocopy/pa1/ChocoPy.jflex   &lt;- OUR LEXER
+│   ├── src/main/cup/chocopy/pa1/ChocoPy.cup       &lt;- OUR GRAMMAR
+│   ├── src/test/data/pa1/sample/                  (33 provided tests)
+│   ├── src/test/data/pa1/edge_cases/              (our 44 tests)
+│   ├── src/test/data/pa1/student_contributed/     (good.py, bad.py: graded)
+│   └── tools/                      (difftest.py, fuzz.py, recovery_quality.py, ast_tree.py)
+├── demo/                           (demo.sh + 5 demo programs)
+├── docs/                           (these PDFs; HTML sources in docs/src/)
+├── presentation/                   (slides .pptx + .pdf, Uni Passau / chair format)
+├── scripts/                        (make_submission.sh, render_docs.sh)
+└── submission/pa1_group_5.zip      (ready to upload)</code></pre>
+
+<h2>3. Open the project in an IDE</h2>
+<h4>IntelliJ IDEA</h4>
+<ol>
+<li><i>File → Open…</i> → select <code>PA1/chocopy-pa1/pom.xml</code> → <i>Open as Project</i> → <i>Trust Project</i>.</li>
+<li>Wait for the Maven import. Then <i>Maven</i> tool window → <i>Lifecycle</i> → double-click <b>package</b>. This generates the lexer and parser.</li>
+<li>Generated sources appear under <code>target/generated-sources/</code>. <b>Never edit them</b>: edit <code>.jflex</code>/<code>.cup</code> and rebuild.</li>
+<li>For the demo: <i>View → Appearance → Presentation Mode</i>, or set the editor font to ≥ 18 pt.</li>
+</ol>
+<h4>VS Code</h4>
+<ol>
+<li><i>File → Open Folder…</i> → <code>PA1/chocopy-pa1</code>. Install "Extension Pack for Java" when it's suggested.</li>
+<li>Open a terminal (<i>Terminal → New Terminal</i>) and use the commands below.</li>
+</ol>
+
+<h2>4. Build</h2>
+<pre><code>cd PA1/chocopy-pa1
+mvn clean package</code></pre>
+<p>What happens: JFlex turns <code>ChocoPy.jflex</code> into <code>ChocoPyLexer.java</code>. CUP turns <code>ChocoPy.cup</code> into
+<code>ChocoPyParser.java</code> + <code>ChocoPyTokens.java</code> and prints any grammar conflicts (we have none). javac compiles, and the result is
+<code>target/assignment.jar</code>. The only expected warnings: <i>Terminal "RESERVED"/"UNRECOGNIZED" was declared but never used</i>, which is intentional.</p>
+<div class="box warn"><span class="tag">The first build needs the internet</span>
+<p><code>pom.xml</code> uses an open version range for Jackson, so Maven contacts Maven Central. If you get <code>502 Bad Gateway</code> or a timeout, simply
+run it again. Once everything is in <code>~/.m2</code>, you can build offline with <code>mvn -o clean package</code>. <b>Build on the presentation
+laptop the day before.</b></p></div>
+
+<h2>5. Run it</h2>
+<table>
+<tr><th style="width:36%">Goal</th><th>Command (from <code>PA1/chocopy-pa1</code>)</th></tr>
+<tr><td>Run all provided tests</td><td><code>java -cp "chocopy-ref.jar:target/assignment.jar" chocopy.ChocoPy --pass=s --dir src/test/data/pa1/sample --test</code><br><span class="muted">Expected last line: <code>Tests: 33 passed, 0 failed, and 0 ignored.</code></span></td></tr>
+<tr><td>Run our edge cases</td><td>same, with <code>--dir src/test/data/pa1/edge_cases</code> → <code>44 passed</code></td></tr>
+<tr><td>Parse one file, print the JSON AST</td><td><code>java -cp "chocopy-ref.jar:target/assignment.jar" chocopy.ChocoPy --pass=s FILE.py</code></td></tr>
+<tr><td>Same file with the reference parser</td><td>replace <code>--pass=s</code> with <code>--pass=r</code></td></tr>
+<tr><td>Write the JSON to a file</td><td>add <code>--out ast.json</code></td></tr>
+<tr><td>Show the AST as a readable tree</td><td><code>... --pass=s --out ast.json FILE.py</code> then <code>python3 tools/ast_tree.py ast.json</code></td></tr>
+<tr><td>Show our token stream (INDENT/DEDENT)</td><td><code>java -cp "chocopy-ref.jar:target/assignment.jar" chocopy.pa1.ChocoPyLexer FILE.py</code></td></tr>
+<tr><td>Reference token stream</td><td>replace <code>chocopy.pa1</code> with <code>chocopy.reference</code></td></tr>
+<tr><td>Parser trace (shifts, reductions, recovery)</td><td>add <code>--debug</code> to the parse command</td></tr>
+<tr><td>Compare with the reference (grader's rule)</td><td><code>python3 tools/difftest.py DIR_OR_FILE …</code></td></tr>
+<tr><td>Generate random test programs</td><td><code>python3 tools/fuzz.py /tmp/fuzz 200 42</code> (count, seed) → then <code>difftest.py /tmp/fuzz</code></td></tr>
+<tr><td>Measure error recovery</td><td><code>python3 tools/recovery_quality.py /tmp/fuzz 200</code> (takes a few minutes)</td></tr>
+</table>
+<p class="small muted">If there are syntax errors, the driver prints them as <code>file:line:col: Parse error near token …</code> instead of JSON. Use
+<code>--out</code> to get the JSON with its <code>errors</code> list anyway.</p>
+
+<h2 class="pb">6. The live demo</h2>
+<p>Everything is scripted in <code>PA1/demo/demo.sh</code>. It shows each command before running it and waits for <b>Enter</b> (type <code>s</code>
++ Enter to skip a step).</p>
+<pre><code>cd PA1
+bash demo/demo.sh</code></pre>
+
+<h3>Before the talk</h3>
+<ul>
+<li>☐ <code>cd PA1/chocopy-pa1 &amp;&amp; mvn clean package</code> the evening before, on the presenting laptop (needs the internet once).</li>
+<li>☐ Do a full dry run of <code>demo.sh</code> that morning.</li>
+<li>☐ Terminal font ≥ 20 pt (macOS Terminal: <i>⌘ +</i>), light theme for the projector, window maximised, "Do Not Disturb" on.</li>
+<li>☐ Have the slide PDF open as a fallback. The slides contain the real outputs below.</li>
+</ul>
+
+<h3>Script: what you run, what you see, what you say</h3>
+<table>
+<tr><th style="width:4%">#</th><th style="width:40%">Expected output</th><th>Say</th></tr>
+<tr><td>1</td><td><code>Tests: 33 passed, 0 failed</code><br><code>Tests: 44 passed, 0 failed</code></td>
+<td>"All provided samples, plus our own 44 edge cases."</td></tr>
+<tr><td>2</td><td><pre><code>line:2 col:1 --    --INDENT--
+line:4 col:1 --        --INDENT--
+line:5 col:1 --            --INDENT--
+line:6 col:1 ----DEDENT--
+line:6 col:1 ----DEDENT--
+line:8 col:1 ----DEDENT--</code></pre></td>
+<td>"Line 6 closes the <code>if</code> and the <code>for</code> at once, so it needs two DEDENTs. Each one comes from re-scanning the same whitespace after a <code>yypushback</code>."</td></tr>
+<tr><td>3</td><td><pre><code>IfStmt [1, 1, 7, 1]
+  elseBody: IfStmt [3, 1, 7, 1]
+    elseBody: []</code></pre></td>
+<td>"<code>elif</code> becomes a nested IfStmt in the else-body. <code>else: pass</code> is an empty list, yet the statement still ends at the else-block's DEDENT (7,1). That rule tripped us up."</td></tr>
+<tr><td>4</td><td><pre><code>IfExpr [1, 5, 1, 44]
+  condition: BinaryExpr or
+    left: UnaryExpr not
+  thenExpr: BinaryExpr +
+    left: BinaryExpr *
+      left: UnaryExpr -</code></pre></td>
+<td>"Precedence: unary minus binds tighter than <code>*</code>, <code>not</code> tighter than <code>or</code>, and the conditional expression is the loosest."</td></tr>
+<tr><td>5</td><td><code>5 files, 5 match the reference, 0 differ</code></td>
+<td>"Our differential tester uses the grader's own comparison rule."</td></tr>
+<tr><td>6</td><td>Ours: <code>1:11 PLUS</code>, <code>4:13 COMMA</code>, <code>11:1 RESERVED</code> (3 errors)<br>Reference: 8 errors (2:2, 4:1, 4:16, 7:1, 7:11, 10:1 …)</td>
+<td>"Three real mistakes. We report three errors, and the reference reports eight. The cascade comes from resuming in the wrong mode."</td></tr>
+<tr><td>6c</td><td><code>ours       statements on lines [10, 11, 12]</code><br><code>reference  statements on lines [1, 5, 8, 11, 12]</code></td>
+<td>"Line 10, <code>z = 5</code>, is correct code. The reference loses it, because the error on the next line is detected before the statement is reduced. Our default reductions keep it."</td></tr>
+<tr><td>7</td><td>Reference: <code>4:1 UNRECOGNIZED</code> and <code>6:1 EOF</code><br>Ours: only <code>4:1</code></td>
+<td>"A bug we found: after a bad dedent, the reference's INDENTs and DEDENTs no longer balance, which produces a bogus EOF error."</td></tr>
+<tr><td>8</td><td><code>100 files, 100 match the reference, 0 differ</code></td>
+<td>"Fresh random programs with a new seed, right now."</td></tr>
+</table>
+
+<div class="box tip"><span class="tag">Timing</span>
+<p>The full demo takes about 3 minutes. If the talk is already at time, show steps <b>2, 6 and 7</b> only (about 1 minute). Steps 1 and 8 can run while you talk.</p></div>
+
+<h3>Fallback plan</h3>
+<ul>
+<li><b>Build fails at the venue</b> (no network): use <code>mvn -o clean package</code>. If <code>target/</code> already exists, don't rebuild at all; the demo only needs <code>target/assignment.jar</code>.</li>
+<li><b>Laptop/projector problem:</b> present from the PDF. The slides contain the same outputs.</li>
+<li><b>A live question</b> ("what happens if…?"): write the snippet to a file and run <code>--pass=s</code> next to <code>--pass=r</code>. That's the most convincing answer there is.</li>
+</ul>
+
+<h2 class="pb">7. Troubleshooting</h2>
+<table>
+<tr><th style="width:38%">Symptom</th><th>Cause → fix</th></tr>
+<tr><td><code>Could not find or load main class chocopy.ChocoPy</code></td><td>Wrong folder or no build yet → <code>cd PA1/chocopy-pa1</code>, run <code>mvn clean package</code>, and check that <code>target/assignment.jar</code> exists.</td></tr>
+<tr><td>Same error on Windows</td><td>Use <code>;</code> instead of <code>:</code> in <code>-cp "chocopy-ref.jar;target/assignment.jar"</code>.</td></tr>
+<tr><td><code>502 Bad Gateway</code> / <code>Could not resolve dependencies</code></td><td>Maven Central was unreachable → retry, or <code>mvn -o …</code> once the dependencies are cached.</td></tr>
+<tr><td><code>WARNING: Final field … mutated reflectively</code></td><td>JDK 24+ with Jackson in the provided code. Harmless; ignore it.</td></tr>
+<tr><td>Tests fail right after editing <code>.jflex</code>/<code>.cup</code></td><td>You forgot to rebuild. Always <code>mvn clean package</code> after editing, especially after adding a terminal.</td></tr>
+<tr><td>CUP reports a shift/reduce or reduce/reduce conflict</td><td>The build stops. Read the conflict report: it names the state and both items. Usually a precedence is missing or two <code>error</code> rules overlap.</td></tr>
+<tr><td><code>python3: command not found</code> (Windows)</td><td>Use <code>python</code>, and run the commands from <code>demo.sh</code> by hand in Git Bash or WSL.</td></tr>
+<tr><td>Output is human-readable errors, not JSON</td><td>Expected when the program has syntax errors. Add <code>--out file.json</code> to get the JSON.</td></tr>
+<tr><td>difftest is slow</td><td>Each file starts two JVMs. It already runs in parallel, so use a smaller corpus for the demo.</td></tr>
+</table>
+
+<h2>8. Making the submission</h2>
+<p>The prepared file is <code>PA1/submission/pa1_group_5.zip</code>. To recreate it (and test it from a clean unzip) in one step:</p>
+<pre><code>cd PA1
+bash scripts/make_submission.sh</code></pre>
+<ol>
+<li>The script already unzips it into an empty folder, builds it there and runs the sample tests; check that it ends with <code>OK</code>.</li>
+<li>Upload <code>pa1_group_5.zip</code> to <b>SubmissionsDir</b> on Stud.IP <b>before Wed 04.11.2026, 23:59</b>. One member uploads; the latest upload counts.</li>
+<li>Download it again from Stud.IP and repeat step 1. (Yes, really.)</li>
+</ol>
+
+</body>
+</html>

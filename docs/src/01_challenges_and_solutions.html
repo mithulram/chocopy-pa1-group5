@@ -1,0 +1,370 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>PA1 Challenges and Solutions</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="cover">
+  <div class="kicker">Compiler Construction Lab · WS 2026/27 · PA1 · Group 5</div>
+  <h1>Lexing &amp; Parsing ChocoPy:<br>Challenges, Fixes and Open Problems</h1>
+  <div class="sub">The engineering log of our front-end: what broke, why it broke, how we found out, and what is still open.</div>
+  <div class="meta">Mithulram Gunasekaran · Mohamed Nuhuman Mohamed Nafeel · Rajapaksha Mudiyanselage Dinodi Divyanjana Rajapaksha</div>
+</div>
+
+<div class="stats">
+  <div class="stat"><div class="num">33/33</div><div class="lbl">provided sample tests</div></div>
+  <div class="stat"><div class="num">44/44</div><div class="lbl">our own edge-case tests</div></div>
+  <div class="stat"><div class="num">3,000+</div><div class="lbl">random programs, all identical to the reference</div></div>
+  <div class="stat"><div class="num">0</div><div class="lbl">LALR conflicts in the grammar</div></div>
+  <div class="stat"><div class="num">1.37</div><div class="lbl">errors per real mistake (reference: 2.01), 0 aborted parses</div></div>
+</div>
+
+<div class="toc">
+  <div>1. The task in one paragraph</div>
+  <div>2. How we approached it</div>
+  <div>3. Challenges in the lexer (C1–C9)</div>
+  <div>4. Challenges in the parser (C10–C16)</div>
+  <div>5. Challenges in error recovery (C17–C21)</div>
+  <div>6. Challenges in tooling and testing (C22–C24)</div>
+  <div>7. Bugs we found in the reference</div>
+  <div>8. Open problems and known limitations</div>
+  <div>9. What we would do differently</div>
+  <div>10. What we referred to</div>
+</div>
+
+<h2>1. The task in one paragraph</h2>
+<p>PA1 is the front-end of our ChocoPy compiler. We had to write a JFlex lexer (<code>ChocoPy.jflex</code>) and a CUP grammar
+(<code>ChocoPy.cup</code>) that turn a ChocoPy program into an AST in JSON. The grader compares our JSON with the staff reference
+parser's JSON: for a <b>valid</b> program the whole tree must be equal, <b>source locations included</b>. For an <b>invalid</b> program,
+only the line and column of the <b>first</b> syntax error are compared. The lexer may never report errors itself: it emits an
+<code>UNRECOGNIZED</code> token, and the parser reports <code>Parse error near token X: text</code>. The parser also has to <i>recover</i>
+from errors and keep parsing.</p>
+
+<div class="box note"><span class="tag">The real difficulty</span>
+<p>Writing a parser that <i>accepts</i> ChocoPy is a textbook exercise. Producing a tree that is <b>identical to the reference down to the
+last column number</b> was the hard part. The reference has location conventions (and a few quirks) that no document describes.
+Most of our work went into finding them out and copying them exactly.</p></div>
+
+<h2>2. How we approached it</h2>
+<p>We treated the reference implementation as an <b>oracle</b> and worked from evidence rather than assumptions. The work went
+through five phases:</p>
+
+<div class="flow">
+  <div class="step"><b>1 · Read</b>Spec, manual §3–4 (lexical rules, grammar, precedence), presentation guidelines.</div>
+  <div class="arrow">›</div>
+  <div class="step"><b>2 · Probe</b>Ran tiny probe files through the <i>reference</i> lexer and parser to learn token names and location rules.</div>
+  <div class="arrow">›</div>
+  <div class="step"><b>3 · Build</b>Lexer (indentation first), then the grammar from Figure 3, conflict-free.</div>
+  <div class="arrow">›</div>
+  <div class="step"><b>4 · Fuzz</b>Random program generator + differential tester using the grader's own comparison rule.</div>
+  <div class="arrow">›</div>
+  <div class="step"><b>5 · Measure</b>A metric for error-recovery quality; kept only the changes that measurably improved it.</div>
+</div>
+
+<p>Two examples of the probing in phase 2:</p>
+<pre><code>$ java -cp "chocopy-ref.jar:target/assignment.jar" chocopy.reference.ChocoPyLexer ops.py
+--+--PLUS-- --//--IDIV-- --==--EQEQ-- --=--EQ-- --[--LINDEX-- --async--RESERVED-- --"\o"--UNRECOGNIZED-- ...
+
+$ java ... chocopy.ChocoPy --pass=r coverage.py      # where does each node start and end?
+IfStmt [16,13,19,8]     &lt;- ends at column 8 of line 19: the indentation of the NEXT line</code></pre>
+<p>That second line was the key to the location rules described in C4.</p>
+
+<!-- ================================================================== -->
+<h2 class="pb">3. Challenges in the lexer</h2>
+
+<div class="card"><h3><span class="n">1</span>One line can close many blocks, but an action returns one token<span class="status ok">solved</span></h3><dl>
+<dt>Symptom</dt><dd>A line that dedents from level 12 to level 0 needs three DEDENT tokens, but a JFlex action can only <code>return</code> one symbol.</dd>
+<dt>Options</dt><dd>(a) A queue of pending tokens, with the generated <code>next_token()</code> wrapped. (b) Re-scan the same whitespace once per DEDENT.</dd>
+<dt>Fix</dt><dd>We chose (b). <code>processIndentation()</code> pops one level, builds one DEDENT, then calls <code>yypushback(yylength())</code>. The next call
+matches the same whitespace again, compares it with the smaller stack, and emits the next DEDENT, until the levels agree. There is no extra data
+structure: the indentation stack is the only state.</dd>
+<dt>Where</dt><dd><code>ChocoPy.jflex</code> lines 194–240, and the line-start rule at 335–341.</dd>
+<dt>Lesson</dt><dd>Changing the <i>input</i> was simpler than adding a token buffer, and it can't fall out of sync with JFlex's line/column counters.</dd>
+</dl></div>
+
+<div class="card"><h3><span class="n">2</span>Indentation zero is an <i>empty</i> match<span class="status ok">solved</span></h3><dl>
+<dt>Symptom</dt><dd>A line at column 1 has no leading whitespace, so a rule like <code>{WhiteSpace}*</code> would match the empty string. JFlex cannot
+make progress on an empty match, so it would never fire.</dd>
+<dt>Fix</dt><dd>The rule matches the whitespace <b>plus the first real character</b>, <code>{WhiteSpace}* [^ \t\r\n#]</code>, and gives that
+character back at once with <code>yypushback(1)</code>. So the match is never empty, and <code>yytext()</code> is exactly the indentation.</dd>
+</dl></div>
+
+<div class="card"><h3><span class="n">3</span>Blank lines and comment-only lines<span class="status ok">solved</span></h3><dl>
+<dt>Symptom</dt><dd>The manual (§3.1.4) says a line with only spaces, tabs and/or a comment produces <b>no</b> NEWLINE, and its indentation does not count.
+At first a comment indented deeper than its block produced a bogus INDENT.</dd>
+<dt>Fix</dt><dd>Three ignore-rules in <code>YYINITIAL</code>: <code>ws* comment? linebreak</code>, and two variants for the last line of a file
+with no line break (<code>ws* comment</code> and <code>ws+</code>). JFlex's <i>longest match</i> makes sure that "<code>   x</code>" goes to the
+indentation rule, while "<code>   # c\n</code>" goes to the blank-line rule.</dd>
+</dl></div>
+
+<div class="card"><h3><span class="n">4</span>Where exactly is a DEDENT? (the location puzzle)<span class="status ok">solved</span></h3><dl>
+<dt>Symptom</dt><dd>Our first ASTs differed from <code>coverage.py.ast</code> only in the end column of <code>IfStmt</code>, <code>WhileStmt</code>
+and <code>ForStmt</code>.</dd>
+<dt>Found by</dt><dd>Reading the expected output: <code>IfStmt [16,13,19,8]</code> ends at line 19, column 8, and line 19 is indented by 8 spaces.
+A compound statement ends at the DEDENT that closes it, and that <b>DEDENT spans the leading whitespace of the next line</b>:
+<code>[L,1,L,width]</code>. With no indentation the span is <code>[L,1,L,0]</code>, which matches the sample error
+<code>DEDENT [5,1,5,0]</code> in <code>bad_func_def.py.ast</code>.</dd>
+<dt>Fix</dt><dd>Build the DEDENT symbol <i>before</i> pushing the whitespace back. Otherwise <code>yylength()</code> is already 0.</dd>
+</dl></div>
+
+<div class="card"><h3><span class="n">5</span>End of file: missing newline, and DEDENTs whose columns keep growing<span class="status mirror">mirrored a quirk</span></h3><dl>
+<dt>Symptom</dt><dd>(a) A file whose last line has no <code>\n</code>. (b) Our random tester found programs where the reference's
+<code>Program</code> ended at <code>[12,2]</code> and ours at <code>[12,1]</code>.</dd>
+<dt>Found by</dt><dd>The reference lexer prints the three DEDENTs at end of file as <code>(5,1) (5,2) (5,3)</code>: each one sits one column further right.
+So nested blocks that all end at EOF get different end columns. For a missing final newline, the reference behaves as if a <code>\n</code> had been
+appended: the DEDENTs land on the <i>next</i> line, column 1.</dd>
+<dt>Fix</dt><dd>The <code>&lt;&lt;EOF&gt;&gt;</code> rule first emits the missing NEWLINE (if we are still in state <code>CODE</code>), then one DEDENT
+per call, then EOF. <code>eofSymbol()</code> moves one column right for every token it makes up.</dd>
+<dt>Note</dt><dd>We reported this as a reference bug (Section 7): those columns don't exist in the source. We still copy it, because the grader compares
+locations.</dd>
+</dl></div>
+
+<div class="card"><h3><span class="n">6</span>A dedent to a level that was never opened<span class="status ok">solved, better than reference</span></h3><dl>
+<dt>Symptom</dt><dd>Levels 0, 4, 8 and then a line at 2. Python says "unindent does not match any outer indentation level", but our lexer must not report errors.</dd>
+<dt>Fix</dt><dd>Pop every level larger than 2, emitting one DEDENT each (flag <code>dedenting</code>). If the stack then sits <i>below</i> the line's
+width, emit an <code>UNRECOGNIZED</code> token, which no grammar rule accepts, and treat the line as part of the enclosing level we reached.</dd>
+<dt>v1 → v2</dt><dd>Our first version, like the reference, opened a new level with an INDENT after the error. The parser's recovery threw that
+INDENT away, but its matching DEDENT turned up one line later as a second, misleading error. Not opening a level removes the cascade.</dd>
+<dt>Bonus</dt><dd>The reference pops only <i>one</i> level here, ends up with more INDENTs than DEDENTs, and reports a bogus second error at EOF. That is our bug report #1.</dd>
+</dl></div>
+
+<div class="card"><h3><span class="n">7</span>String literals: a build error, a redesign, and two quirks<span class="status ok">solved</span></h3><dl>
+<dt>v1 (build error)</dt><dd>We wrote the allowed characters as <code>[\u0020\u0021\u0023-\u005B\u005D-\u007E]</code>, and JFlex failed with
+"Syntax error". JFlex replaces <code>\uXXXX</code> escapes <b>before</b> it parses the regex (as <code>javac</code> does), so <code>\u005B</code>
+turned into a bare <code>[</code> that broke the character class. Fix: write it as <code>[ !#-\[\]-~]</code>.</dd>
+<dt>v2 (redesign)</dt><dd>Our first version scanned strings character by character in a separate <code>STRING</code> state. The differential tester showed
+that the reference reports an unterminated string as a <b>single</b> <code>"</code> token and keeps lexing after it. We replaced the whole state with one
+regex for a complete literal plus a Java decoder (<code>stringSymbol()</code>, lines 262–291). That was simpler and it matched the reference.</dd>
+<dt>Quirk 1</dt><dd>The reference's string match runs <b>across line breaks</b> up to the next quote, and then rejects the literal (a newline is not
+printable ASCII). Its end location is computed as start + length <i>on the start line</i>. We copied this.</dd>
+<dt>Quirk 2</dt><dd>A backslash directly before a line break ends the match (<code>\\[^\r\n]</code>). The fuzzer found this one too.</dd>
+<dt>Rules</dt><dd>Only <code>\" \n \t \\</code> are legal. Any other escape (<code>"C:\path"</code>) or a character outside 32–126 (such as a tab)
+makes the <b>whole literal</b> one <code>UNRECOGNIZED</code> token. A string whose contents look like an identifier is an <code>IDSTRING</code>
+(allowed as a type, e.g. <code>self: "Node"</code>).</dd>
+</dl></div>
+
+<div class="card"><h3><span class="n">8</span>Integer literals: overflow, leading zeros, and negative numbers<span class="status ok">solved</span></h3><dl>
+<dt>Behaviour</dt><dd><code>2147483647</code> is the largest literal. <code>2147483648</code> becomes <code>UNRECOGNIZED</code> (caught as a
+<code>NumberFormatException</code>), like the reference. <code>007</code> lexes as <code>0 0 7</code> (longest match with
+<code>0 | [1-9][0-9]*</code>), so the parser fails at the second <code>0</code>.</dd>
+<dt>Subtle</dt><dd>So <code>-2147483648</code> cannot be written as a literal at all: unary minus is applied to an out-of-range literal.
+The manual's rule implies this, and the reference agrees, so we left it as it is.</dd>
+</dl></div>
+
+<div class="card"><h3><span class="n">9</span>Python keywords that ChocoPy reserves<span class="status ok">solved</span></h3><dl>
+<dt>Behaviour</dt><dd><code>lambda</code>, <code>import</code>, <code>async</code>, … (16 words) may not be identifiers (manual §3.3), but no rule uses them. We
+emit a <code>RESERVED</code> token (the reference's name for it), so <code>lambda = 5</code> gives "Parse error near token RESERVED".
+Because keywords come before the identifier rule and JFlex prefers the longest match, <code>classic</code> or <code>iffy</code> still lex as identifiers.</dd>
+</dl></div>
+
+<!-- ================================================================== -->
+<h2 class="pb">4. Challenges in the parser</h2>
+
+<div class="card"><h3><span class="n">10</span>The text in error messages was wrong<span class="status ok">solved</span></h3><dl>
+<dt>Symptom</dt><dd>The starter's <code>syntax_error</code> printed <code>lexer.yytext()</code>. That is the text of the <i>most recent match</i>, which is not
+always the offending token's text: after <code>yypushback</code> (DEDENT), for tokens we invent at EOF, and while CUP reads ahead during recovery.</dd>
+<dt>Fix</dt><dd>The lexer stores each token's source text in an <code>IdentityHashMap&lt;Symbol,String&gt;</code>, and the parser asks
+<code>getTokenText(cur_token)</code>. The text is attached to the token itself, so no lexer state is involved.</dd>
+</dl></div>
+
+<div class="card"><h3><span class="n">11</span>Precedence without a tower of nonterminals, and zero conflicts<span class="status ok">solved</span></h3><dl>
+<dt>Approach</dt><dd>We kept the manual's <code>expr</code>/<code>cexpr</code> split and resolved everything else with CUP <code>precedence</code> lines
+(lowest → highest: <code>if-else</code>, <code>or</code>, <code>and</code>, <code>not</code>, comparisons, <code>+ -</code>, <code>* // %</code>, unary
+<code>-</code>, <code>. []</code>).</dd>
+<dt>Details</dt><dd>• Comparisons are <code>nonassoc</code>, so <code>a &lt; b &lt; c</code> is an error, as in the manual.<br>
+• <code>not</code>/<code>and</code>/<code>or</code>/<code>if</code> only work on <code>expr</code>, so <code>True == not False</code> is a syntax error,
+exactly as the manual demands.<br>• Unary minus gets its own level with a dummy terminal and <code>%prec UMINUS</code>, so <code>-a * b</code> is
+<code>(-a) * b</code>, but <code>-a.b</code> is <code>-(a.b)</code>.<br>• <code>x if c else y if d else z</code> is right-associative.</dd>
+<dt>Result</dt><dd>The grammar builds with <b>zero</b> shift/reduce and reduce/reduce conflicts. Our <code>pom.xml</code> has no <code>expect</code>
+option, so even a single conflict would fail the build.</dd>
+</dl></div>
+
+<div class="card"><h3><span class="n">12</span>Declarations must come before statements: <code>x : int</code> vs <code>x = 1</code><span class="status ok">solved</span></h3><dl>
+<dt>Question</dt><dd>Both a variable definition and a statement can start with an identifier. Is the grammar still LALR(1)?</dd>
+<dt>Answer</dt><dd>Yes. After shifting <code>IDENTIFIER</code>, the lookahead decides: <code>:</code> means a typed variable, and anything else means an
+expression or assignment target. The same goes for assignment: after an identifier or member/index expression, <code>=</code> reduces it to a
+<code>target</code>, which is how <code>a = b.c = d[0] = 1</code> collects all three targets.</dd>
+</dl></div>
+
+<div class="card"><h3><span class="n">13</span>Locations from symbols, not from AST nodes<span class="status ok">solved: found by the fuzzer</span></h3><dl>
+<dt>Symptom</dt><dd>Two random programs failed: one that began with <code>pass</code>, and one with <code>else: pass</code>.</dd>
+<dt>Root cause</dt><dd><code>pass</code> builds <b>no AST node</b>. We computed the program's start, and an <code>if</code>'s end, from the AST nodes and from
+whether lists were empty. The reference uses <b>grammar-symbol</b> positions: a program starting with <code>pass</code> starts at that token, and an
+<code>if</code> with <code>else: pass</code> still ends at the else-block's DEDENT, although its else-list is empty.</dd>
+<dt>Fix</dt><dd>We split the rules (<code>IF … block</code> vs <code>IF … block elif_else</code>; <code>program ::= top_decls stmt_list | top_decls</code>)
+so each location comes from a symbol (<code>restxright</code>, <code>sxleft</code>). We never test whether a list is empty to decide a location.</dd>
+</dl></div>
+
+<div class="card"><h3><span class="n">14</span>Desugaring <code>elif</code><span class="status ok">solved</span></h3><dl>
+<dt>Requirement</dt><dd>The AST has no elif. <code>if a: X elif b: Y else: Z</code> must become <code>IfStmt(a, X, [IfStmt(b, Y, Z)])</code>.</dd>
+<dt>Fix</dt><dd>A right-recursive <code>elif_else</code> rule: each <code>elif</code> returns a one-element list holding a nested <code>IfStmt</code>,
+whose location runs from <code>elif</code> to the end of the rest of the chain. No post-processing is needed. (<code>ChocoPy.cup</code> lines 612–626)</dd>
+</dl></div>
+
+<div class="card"><h3><span class="n">15</span>A function without <code>-&gt; type</code><span class="status ok">solved</span></h3><dl>
+<dt>Behaviour</dt><dd>The AST still needs a return type: the reference uses <code>ClassType "&lt;None&gt;"</code> <b>located at the header's colon</b>
+(we found this with a probe). We capture the colon as <code>COLON:c</code> and build that node when <code>return_type_opt</code> is empty.</dd>
+</dl></div>
+
+<div class="card"><h3><span class="n">16</span>Why does a class end at <code>[36,0]</code> but its method at <code>[34,22]</code>?<span class="status ok">solved</span></h3><dl>
+<dt>Puzzle</dt><dd>In <code>coverage.py.ast</code> the method <code>baz</code> ends at its last NEWLINE (34,22), yet the class around it ends at (36,0), the
+DEDENT of line 36.</dd>
+<dt>Explanation</dt><dd>A <code>FuncDef</code> <b>node</b> ends where its body ends, but the <code>func_def</code> grammar <b>symbol</b> also includes the
+closing DEDENT. The class takes its end from its last member's <i>symbol</i>, so it ends at that DEDENT. Seeing that "node location" and "symbol
+location" are two different things made all the location rules fall into place.</dd>
+</dl></div>
+
+<!-- ================================================================== -->
+<h2 class="pb">5. Challenges in error recovery</h2>
+
+<div class="card"><h3><span class="n">17</span>A reduce/reduce conflict hiding in error recovery<span class="status ok">solved</span></h3><dl>
+<dt>Problem</dt><dd>The natural design is to have every list absorb errors: declarations (<code>decls ::= decls error</code>) and statements (<code>stmts ::= error</code>).
+But right after the declarations, a declaration <i>or</i> a statement can begin. If both <code>error</code> rules are live in that state, shifting
+<code>error</code> leads to a state with two completed items: a <b>reduce/reduce conflict</b>.</dd>
+<dt>Fix</dt><dd>Separate nonterminals with separate roles. The top-level <code>stmt_list</code> only accepts <code>error</code> <i>after</i> its first statement,
+while <code>block_stmts</code> (inside an indented block or a function body, where nothing competes) may also start with <code>error</code>. An error on the very first
+top-level statement is absorbed by <code>top_decls</code>, which is harmless.</dd>
+</dl></div>
+
+<div class="card"><h3><span class="n">18</span>One mistake, five errors: cascades<span class="status ok">improved and measured</span></h3><dl>
+<dt>Symptom</dt><dd><code>x:int = 1 + 2</code> reported errors on <i>this and every later declaration</i>, and so did the reference. Recovery resumed on the
+leftover <code>2</code> as a <b>statement</b>, and since declarations may not follow statements, every following <code>def</code>/<code>class</code> failed.</dd>
+<dt>Fix</dt><dd><b>Anchored</b> recovery rules. A bad initial value skips to the end of its line (<code>typed_var EQ error NEWLINE</code>). A broken
+<code>def</code>/<code>class</code>/<code>if</code>/<code>elif</code>/<code>while</code>/<code>for</code> header skips to the end of <i>its</i> line, and
+if an indented body follows, the body is parsed too, so its INDENT doesn't cause more errors (<code>IF error NEWLINE INDENT block_stmts DEDENT</code>).</dd>
+<dt>Safety</dt><dd>Adding <code>error</code> rules cannot move the <b>first</b> error. <code>error</code> never appears in real input, so the
+set of valid token prefixes is unchanged, and the first token an LR parser rejects stays the same. The differential tester confirmed this on every program.</dd>
+<dt>Demo</dt><dd><code>demo/4_recovery.py</code> (3 real mistakes): ours reports <b>3 errors</b>, and the reference reports <b>8</b>.</dd>
+</dl></div>
+
+<div class="card"><h3><span class="n">19</span>The vanishing statement<span class="status ok">solved: Bison-style default reductions</span></h3><dl>
+<dt>Symptom</dt><dd>In <code>z = 5</code> followed by <code>lambda = 5</code>, the <i>correct</i> statement <code>z = 5</code> was missing from the AST, in
+both our parser and the reference.</dd>
+<dt>Root cause</dt><dd>To reduce <code>stmt ::= simple_stmt NEWLINE</code>, the LR parser needs a <i>valid</i> lookahead, and RESERVED is not one. So it reported
+the error <i>before</i> the finished statement was reduced, and recovery popped <code>z = 5</code> off the stack.</dd>
+<dt>Fix</dt><dd>Default reductions in <b>consistent states</b> (states whose only action is one reduction), as Bison does by default. CUP has this as
+<code>-compact_red</code>, but that flag is set in <code>pom.xml</code>, which we may not edit. So <code>enableDefaultReductions()</code> patches CUP's
+action table when the parser starts (<code>init with</code>). The error position cannot change: those reductions would have happened on every valid
+token anyway, and reductions consume no input.</dd>
+<dt>Side effect</dt><dd>It exposed C20: once a block is fully reduced, a later error reached a recovery rule that was meant for the header.</dd>
+</dl></div>
+
+<div class="card"><h3><span class="n">20</span>The abort trap: anchors that never come<span class="status ok">solved: found by a better metric</span></h3><dl>
+<dt>Symptom</dt><dd>After C19, one test file suddenly produced an <b>empty AST</b>: CUP had given up on the whole file. When we added an "aborted parses"
+column to our metric, we saw that the earlier version had also aborted on 4 of 133 programs (the reference: 1–2). The old metric had hidden this.</dd>
+<dt>Root cause</dt><dd>Our first anchored rules waited for <code>COLON NEWLINE INDENT</code> (<code>IF error COLON block</code>). CUP discards tokens until
+the anchor parses. If it never comes (a missing colon, or an error <i>after</i> the block that fell back into the "after IF" state), CUP reaches EOF and
+<b>gives up</b>. A second case: a function whose <i>only</i> statement is broken. With <code>func_decls error</code>, recovery resumed in declaration
+mode, threw away the function's DEDENT, and failed at EOF. The reference does exactly this too.</dd>
+<dt>Fix</dt><dd>(1) Anchor only on <b>NEWLINE</b>, which always comes soon, and make the indented body optional. (2) Move the normal headers into small
+nonterminals (<code>if_header ::= IF expr COLON</code> …): once reduced, their internal states leave the stack, so later errors can't fall back into
+them. (3) Function bodies use <code>block_stmts</code>, which may start with <code>error</code>. <code>func_decls error</code> is gone, since two live
+error rules would be a reduce/reduce conflict.</dd>
+<dt>Also</dt><dd>Our first abort detector ("the AST is empty") gave false positives: a program that is one broken <code>for</code> loop correctly yields an
+empty AST. The tool now checks CUP's own <i>"Error recovery fails"</i> message.</dd>
+</dl></div>
+
+<div class="card"><h3><span class="n">21</span>Tuning CUP's re-synchronisation window<span class="status ok">decided with data</span></h3><dl>
+<dt>Background</dt><dd>After an error, CUP trusts its recovery only if the next <code>error_sync_size()</code> tokens (default 3) parse cleanly. Otherwise it
+discards a token and tries again. That is why <code>lambda = 5</code> right after another broken line goes unreported: it falls inside the window.</dd>
+<dt>Experiment</dt><dd>We overrode it to 2 and 1. Average errors went 2.86 → 2.93 → 3.47, so smaller windows give <i>more</i> cascades. We kept the default of 3.</dd>
+</dl></div>
+
+<h3>The measurements behind section 5</h3>
+<p><code>tools/recovery_quality.py</code> puts exactly <b>one</b> <code>$</code> into one random line of each valid program. Ideal: 1 error, all
+undamaged code kept, never give up. Two independent corpora, final version:</p>
+<table><tr><th>Corpus</th><th>Parser</th><th>Exactly one error</th><th>Avg. errors per mistake</th><th>Undamaged code kept</th><th>Aborted parses</th></tr>
+<tr><td rowspan="2">A (133 programs)</td><td>Reference</td><td>43.6 %</td><td>2.28</td><td>95.6 %</td><td>1</td></tr>
+<tr><td><b>Ours</b></td><td><b>76.7 %</b></td><td><b>1.35</b></td><td><b>95.8 %</b></td><td><b>0</b></td></tr>
+<tr><td rowspan="2">B (213 programs)</td><td>Reference</td><td>46.0 %</td><td>1.84</td><td>96.1 %</td><td>2</td></tr>
+<tr><td><b>Ours</b></td><td><b>73.2 %</b></td><td><b>1.38</b></td><td><b>96.2 %</b></td><td><b>0</b></td></tr></table>
+<p>How we got there, on corpus A: list-level <code>error</code> rules only → 2.86 errors per mistake. Colon-anchored rules → 1.30, but 4 aborted parses.
+Final design (NEWLINE anchors, header nonterminals, default reductions) → 1.35 with 0 aborted parses and more code kept. We accepted
+slightly more errors than the colon version in exchange for <b>never</b> giving up on a file.</p>
+
+<!-- ================================================================== -->
+<h2>6. Challenges in tooling and testing</h2>
+
+<div class="card"><h3><span class="n">22</span>The very first build failed (and it wasn't our code)<span class="status ok">understood</span></h3><dl>
+<dt>Symptom</dt><dd><code>mvn clean package</code> on the untouched starter failed with HTTP <b>502 Bad Gateway</b> for <code>jackson-bom 2.21.3</code>.</dd>
+<dt>Root cause</dt><dd><code>pom.xml</code> asks for <code>jackson-databind</code> with the <b>open version range</b> <code>[2.9.10.1,)</code>, so Maven asks
+Maven Central for "the newest version" on every build. That is a network round-trip that can fail, and the result can change over time. A retry worked.
+We may not edit <code>pom.xml</code>, so for the live demo we make sure the dependencies are already in the local Maven cache (see the Demo Runbook).</dd>
+<dt>Also</dt><dd>On JDK 27, Jackson prints "Final field … mutated reflectively" warnings. These are harmless and come from the provided <code>chocopy.common</code> code.</dd>
+</dl></div>
+
+<div class="card"><h3><span class="n">23</span>Passing 33 samples proves little: building a differential tester<span class="status ok">done</span></h3><dl>
+<dt>Why</dt><dd>Grading also uses <b>private</b> tests. We passed all 33 samples within hours, and the fuzzer still found 13 differences afterwards.</dd>
+<dt>Tools</dt><dd><code>tools/fuzz.py</code> generates random programs from the grammar, with random tabs/spaces, CR/LF/CRLF line endings,
+comments, blank lines and missing final newlines. It also makes a mutated copy of each with one random defect. <code>tools/difftest.py</code> runs both
+parsers and applies the <b>grader's rule</b>: full AST equality for valid programs, first-error location for invalid ones. It runs in parallel threads,
+because each run starts two JVMs.</dd>
+<dt>Found</dt><dd>C5(b), C7 (v2 and both quirks) and C13 were all found this way. None of them showed up in the samples.
+Final run: <b>3,511 files</b> (samples, edge cases, probes, four random corpora), all identical to the reference under the grader's rule.</dd>
+</dl></div>
+
+<div class="card"><h3><span class="n">24</span>Testing the tester: our generator lied<span class="status ok">fixed</span></h3><dl>
+<dt>Symptom</dt><dd>While measuring recovery, we saw errors <i>before</i> the injected defect. Only <b>193 of 400</b> "valid" generated programs were actually valid.</dd>
+<dt>Root cause</dt><dd>The generator built assignment targets such as <code>-x.foo = 1</code> (which parses as <code>-(x.foo)</code>, not assignable) and comparisons
+nested inside arithmetic (<code>a &lt; b + c is d</code>, a chained comparison).</dd>
+<dt>Fix</dt><dd>Targets are now built only from assignable expressions, and every comparison is parenthesised. After that, <b>500/500</b> programs were valid, and
+all <b>1,000</b> (valid + mutated) matched the reference. Both parsers had agreed on the invalid ones from the start, but this way we really do compare 500 ASTs.</dd>
+</dl></div>
+
+<!-- ================================================================== -->
+<h2 class="pb">7. Bugs we found in the reference implementation</h2>
+<p>These are also in the README write-up, as the spec asks (§8.5).</p>
+<table>
+<tr><th style="width:22%">Bug</th><th>Input → reference behaviour</th><th style="width:28%">Expected</th></tr>
+<tr><td><b>1. Unbalanced INDENT/DEDENT after a bad dedent</b></td>
+<td>Levels 0,4,8 then a line at 2: emits <code>DEDENT, UNRECOGNIZED, INDENT</code> (pops only one level and pushes 2 on top of 4, so the
+stack is no longer increasing). Ends with 3 INDENTs and only 2 DEDENTs, and reports a bogus <code>Parse error near token EOF</code>.</td>
+<td>Pop every level above 2 first, so only the error at the bad line is reported (as our lexer does).</td></tr>
+<tr><td><b>2. Made-up columns for DEDENTs at EOF</b></td>
+<td>Three blocks ending at EOF get DEDENTs at (5,1), (5,2), (5,3), so nested <code>IfStmt</code>s end at columns that don't exist. The token text
+is also stale: <code>Parse error near token DEDENT: x</code>.</td>
+<td>All at (5,1), with empty text.</td></tr>
+<tr><td><b>3. Strings across lines</b></td>
+<td>An unclosed quote swallows everything up to the next quote, even many lines later, as one token. Its end location is computed on the
+<i>start</i> line: <code>[18,9,18,14]</code> for a token that ends on line 19.</td>
+<td>Stop at the end of the line (like Python's "unterminated string literal"), or at least report the right end line.</td></tr>
+</table>
+
+<h2>8. Open problems and known limitations</h2>
+<ul>
+<li><b>We copy two reference quirks on purpose</b> (EOF DEDENT columns, multi-line string tokens). If the reference were fixed, we would revert
+<code>eofColumn += 1</code> and change one character class. Both places are commented.</li>
+<li><b>A statement with a broken header is dropped.</b> Its body is parsed and checked for errors, but no node is kept. We could build a placeholder
+node with a missing condition, but that puts half-valid nodes into the tree that PA2 would have to handle, so we chose not to.</li>
+<li><b>A broken declaration inside a function body</b> (other than a bad initial value) switches recovery to statement mode, so a later declaration
+in the <i>same</i> function is reported as well. This follows from C20 (we removed <code>func_decls error</code> to prevent aborts).</li>
+<li><b>An error right after an error can go unreported</b> (C21, <code>lambda = 5</code>), because of CUP's 3-token window.</li>
+<li><b>Error messages:</b> the wording differs slightly from the reference, which adds hints such as <code>&lt;bad escape&gt;</code>. Only locations are
+graded. A message like "unindent does not match any outer level" would be friendlier than "UNRECOGNIZED".</li>
+<li>The lexer's debug <code>main</code> (generated by <code>%cupdebug</code>) prints <code>yytext()</code>, so a DEDENT shows empty text there. This is cosmetic.</li>
+</ul>
+
+<h2>9. What we would do differently</h2>
+<ul>
+<li><b>Build the differential tester on day one.</b> Every hard bug was found by it, not by the samples.</li>
+<li><b>Probe the reference before designing.</b> Our STRING state (C7) was written before we knew how the reference treats unterminated strings, and it had to be thrown away.</li>
+<li><b>Measure the failure you fear most first.</b> Our recovery metric counted errors but not aborted parses, so a version that "improved" the
+error count was quietly giving up on 3% of files (C20).</li>
+<li><b>Make locations a first-class design decision:</b> "symbol position or node position?" should be answered once for every rule, not discovered rule by rule.</li>
+</ul>
+
+<h2>10. What we referred to</h2>
+<ul>
+<li>PA1 specification, ChocoPy Language Manual and Reference §3 (lexical structure) and §4 (grammar, Figure 3, precedence table).</li>
+<li>JFlex user manual: lexical states, <code>yypushback</code>, <code>&lt;&lt;EOF&gt;&gt;</code>, longest match and rule order, <code>\u</code> pre-processing.</li>
+<li>CUP manual: <code>precedence</code>, <code>%prec</code>, the <code>error</code> symbol, <code>error_sync_size</code>, <code>xleft/xright</code> with <code>ComplexSymbolFactory</code>.</li>
+<li>Python 3 language reference, "Lexical analysis → Indentation" (the source of the manual's algorithm).</li>
+<li>The staff reference implementation, used as a black-box oracle (<code>--pass=r</code>, <code>chocopy.reference.ChocoPyLexer</code>).</li>
+<li>Claude (Anthropic), used as an AI assistant. This is declared in the README.</li>
+</ul>
+
+</body>
+</html>

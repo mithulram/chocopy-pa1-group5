@@ -1,0 +1,122 @@
+/* Shared print stylesheet for the PA1 group-5 documents (rendered to PDF
+   with headless Chrome). Palette: cocoa / caramel / mint. */
+:root {
+  --cocoa: #4A2C2A;
+  --cocoa-soft: #6B4441;
+  --caramel: #C8794A;
+  --caramel-tint: #F7EADF;
+  --mint: #1F7A66;
+  --mint-tint: #E3F2EE;
+  --red: #A23B3B;
+  --red-tint: #F8E6E6;
+  --ink: #222222;
+  --muted: #666666;
+  --rule: #E2D6CF;
+  --code-bg: #F6F3F1;
+}
+@page { size: A4; margin: 18mm 17mm 18mm 17mm; }
+* { box-sizing: border-box; }
+html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+body {
+  font-family: "Charter", "Georgia", serif;
+  font-size: 10.6pt;
+  line-height: 1.5;
+  color: var(--ink);
+  margin: 0;
+  background: #FFFFFF;
+}
+h1, h2, h3, h4, .kicker, th, .tag, .num, .meta, .toc {
+  font-family: "Avenir Next", "Helvetica Neue", Arial, sans-serif;
+}
+h1 { font-size: 25pt; line-height: 1.15; color: var(--cocoa); margin: 0 0 6pt; font-weight: 700; }
+h2 {
+  font-size: 15.5pt; color: var(--cocoa); margin: 20pt 0 6pt; font-weight: 700;
+  page-break-after: avoid; break-after: avoid;
+}
+h3 { font-size: 12pt; color: var(--cocoa-soft); margin: 13pt 0 4pt; font-weight: 600; break-after: avoid; }
+h4 { font-size: 10.5pt; margin: 9pt 0 2pt; color: var(--cocoa); font-weight: 600; break-after: avoid; }
+p { margin: 0 0 7pt; }
+ul, ol { margin: 0 0 7pt; padding-left: 17pt; }
+li { margin-bottom: 2.5pt; }
+a { color: var(--mint); text-decoration: none; }
+code, pre, .mono { font-family: "Menlo", "SF Mono", Consolas, monospace; font-size: 8.6pt; }
+code { background: var(--code-bg); padding: 0.5pt 3pt; border-radius: 3pt; }
+pre {
+  background: var(--code-bg); padding: 7pt 9pt; border-radius: 5pt; line-height: 1.38;
+  white-space: pre-wrap; margin: 4pt 0 9pt; break-inside: avoid;
+}
+pre code { background: none; padding: 0; }
+table { border-collapse: collapse; width: 100%; margin: 4pt 0 10pt; font-size: 9.6pt; break-inside: avoid; }
+th { text-align: left; background: var(--cocoa); color: #FFFFFF; font-weight: 600; padding: 4pt 6pt; font-size: 9pt; }
+td { border-bottom: 1px solid var(--rule); padding: 4pt 6pt; vertical-align: top; }
+tr:nth-child(even) td { background: #FBF8F6; }
+
+/* Cover */
+.cover {
+  background: var(--cocoa); color: #FFFFFF; padding: 26pt 26pt 22pt; border-radius: 8pt;
+  margin-bottom: 14pt;
+}
+.cover h1 { color: #FFFFFF; font-size: 27pt; }
+.cover .kicker { color: #F1C9A8; letter-spacing: 1.5pt; text-transform: uppercase; font-size: 8.5pt; font-weight: 600; }
+.cover .sub { font-size: 12pt; color: #F3E6DC; margin-top: 4pt; }
+.cover .meta { font-size: 8.8pt; color: #E6D3C6; margin-top: 12pt; }
+
+/* Stat strip */
+.stats { display: flex; gap: 8pt; margin: 6pt 0 12pt; break-inside: avoid; }
+.stat { flex: 1; background: var(--caramel-tint); border-radius: 6pt; padding: 8pt 9pt; }
+.stat .num { font-size: 19pt; font-weight: 700; color: var(--cocoa); line-height: 1.1; }
+.stat .lbl { font-family: "Avenir Next", Arial, sans-serif; font-size: 8pt; color: var(--cocoa-soft); }
+
+/* Callouts */
+.box { border-radius: 6pt; padding: 8pt 11pt; margin: 6pt 0 10pt; break-inside: avoid; }
+.box > :last-child { margin-bottom: 0; }
+.box.tip { background: var(--mint-tint); }
+.box.warn { background: var(--red-tint); }
+.box.note { background: var(--caramel-tint); }
+.box .tag {
+  display: inline-block; font-size: 7.5pt; font-weight: 700; letter-spacing: 0.8pt; text-transform: uppercase;
+  margin-bottom: 2pt; color: var(--cocoa);
+}
+.box.tip .tag { color: var(--mint); }
+.box.warn .tag { color: var(--red); }
+
+/* Challenge cards */
+.card {
+  border: 1px solid var(--rule); border-radius: 7pt; padding: 9pt 12pt 6pt; margin: 9pt 0;
+  break-inside: avoid;
+}
+.card h3 { margin-top: 0; color: var(--cocoa); }
+.card h3 .n {
+  display: inline-block; min-width: 19pt; height: 19pt; line-height: 19pt; text-align: center;
+  background: var(--caramel); color: #FFFFFF; border-radius: 10pt; font-size: 9.5pt; margin-right: 6pt;
+}
+.card dl { margin: 0; display: grid; grid-template-columns: 74pt 1fr; gap: 3pt 8pt; }
+.card dt { font-family: "Avenir Next", Arial, sans-serif; font-size: 8.3pt; font-weight: 700; color: var(--cocoa-soft);
+  text-transform: uppercase; letter-spacing: 0.4pt; padding-top: 1.5pt; }
+.card dd { margin: 0 0 3pt; }
+.status { font-family: "Avenir Next", Arial, sans-serif; font-size: 7.8pt; font-weight: 700; padding: 1pt 5pt; border-radius: 3pt;
+  margin-left: 5pt; vertical-align: 1.5pt; }
+.status.ok { background: var(--mint-tint); color: var(--mint); }
+.status.open { background: var(--red-tint); color: var(--red); }
+.status.mirror { background: var(--caramel-tint); color: #8A4E2B; }
+
+/* Q&A */
+.qa { border-left: none; margin: 7pt 0 9pt; break-inside: avoid; }
+.qa .q { font-family: "Avenir Next", Arial, sans-serif; font-weight: 600; color: var(--cocoa); font-size: 10.4pt; margin-bottom: 2pt; }
+.qa .q .qn { color: var(--caramel); margin-right: 4pt; }
+.qa .a { padding-left: 14pt; }
+.qa .a p { margin-bottom: 4pt; }
+.qa .ptr { font-family: "Avenir Next", Arial, sans-serif; font-size: 8.4pt; color: var(--muted); }
+
+.two { display: flex; gap: 12pt; }
+.two > div { flex: 1; }
+.muted { color: var(--muted); }
+.small { font-size: 9pt; }
+.pb { page-break-before: always; break-before: page; }
+.toc { font-size: 9.6pt; columns: 2; column-gap: 18pt; margin: 4pt 0 8pt; }
+.toc div { margin-bottom: 2pt; }
+hr { border: none; border-top: 1px solid var(--rule); margin: 12pt 0; }
+.flow { display: flex; align-items: stretch; gap: 0; margin: 8pt 0 12pt; break-inside: avoid; }
+.flow .step { flex: 1; background: var(--caramel-tint); border-radius: 6pt; padding: 6pt 7pt; font-size: 8.8pt; }
+.flow .step b { font-family: "Avenir Next", Arial, sans-serif; color: var(--cocoa); display: block; font-size: 9.3pt; }
+.flow .arrow { width: 14pt; display: flex; align-items: center; justify-content: center; color: var(--caramel); font-size: 13pt; }

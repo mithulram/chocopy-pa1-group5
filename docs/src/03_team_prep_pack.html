@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>PA1 Team Prep Pack</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="cover">
+  <div class="kicker">Compiler Construction Lab · PA1 · Group 5 · Internal</div>
+  <h1>Team Prep Pack</h1>
+  <div class="sub">Everything the three of us need to present PA1 and survive 10 minutes of questions. The rule from the guidelines:
+  <i>every member must understand every part of the code.</i></div>
+  <div class="meta">Submission deadline: Wed 04.11.2026, 23:59 · Presentation: Thu 12.11.2026 (backup date 19.11.2026) · 15 min talk + 10 min Q&amp;A</div>
+</div>
+
+<h2>1. The 60-second version (everyone memorises this)</h2>
+<div class="box note">
+<p>"We built the ChocoPy front-end: a JFlex lexer and a CUP LALR(1) parser that produce the JSON AST. The tests compare our tree with the
+reference parser's tree <b>down to every line and column</b>, so most of our work was reverse-engineering the reference's location rules. We
+did that by using the reference as an <b>oracle</b>: we probed it with tiny inputs, and then we built a <b>random program generator and a
+differential tester</b> that applies the grader's own rule. We pass all 33 samples and our 44 edge cases, and more than 3,000 random
+programs give identical results. The three hardest problems were emitting several DEDENTs from one line (solved with a <code>yypushback</code>
+loop), source locations (node position vs grammar-symbol position), and error recovery. For recovery we went beyond the reference:
+anchored recovery rules plus Bison-style default reductions, measured with a metric we wrote. We also found three bugs in the reference."</p>
+</div>
+
+<h2>2. The pipeline</h2>
+<div class="flow">
+  <div class="step"><b>Source text</b><code>.py</code> file, read as one String by the driver</div>
+  <div class="arrow">›</div>
+  <div class="step"><b>Lexer</b><code>ChocoPyLexer</code> (generated from <code>ChocoPy.jflex</code>). States YYINITIAL / CODE. Indentation stack.</div>
+  <div class="arrow">›</div>
+  <div class="step"><b>Tokens</b><code>Symbol</code>s with kind, value, left/right location (<code>ComplexSymbolFactory</code>)</div>
+  <div class="arrow">›</div>
+  <div class="step"><b>Parser</b><code>ChocoPyParser</code> (generated from <code>ChocoPy.cup</code>). LALR(1) tables + our actions</div>
+  <div class="arrow">›</div>
+  <div class="step"><b>AST</b><code>chocopy.common.astnodes.*</code>; <code>Program</code> holds <code>Errors</code></div>
+  <div class="arrow">›</div>
+  <div class="step"><b>JSON</b>Jackson serialises the tree (driver code, not ours)</div>
+</div>
+<p>Entry point: <code>chocopy.ChocoPy --pass=s</code> → <code>chocopy.pa1.StudentParser.process()</code> (starter, unchanged) → lexer + parser →
+<code>parseProgram()</code>. With <code>--pass=r</code>, the same driver runs the reference instead.</p>
+
+<h2>3. Code map: where everything lives</h2>
+<table>
+<tr><th style="width:30%">File / lines</th><th>What it does</th><th style="width:14%">Owner</th></tr>
+<tr><td><code>ChocoPy.jflex</code> top comment</td><td>The design in one paragraph: two states, the yypushback trick, strings</td><td>Mithulram</td></tr>
+<tr><td><code>ChocoPy.jflex</code> <code>%init</code></td><td>Push the initial 0 onto the indentation stack</td><td>Mithulram</td></tr>
+<tr><td><code>ChocoPy.jflex</code> <code>symbol(…)</code> helpers</td><td>Build tokens with locations; record each token's text for error messages</td><td>Mithulram</td></tr>
+<tr><td><code>ChocoPy.jflex</code> <code>eofSymbol</code></td><td>Tokens made up at EOF (one column further right each, like the reference)</td><td>Mithulram</td></tr>
+<tr><td><code>ChocoPy.jflex</code> <code>indentationWidth</code>, <code>processIndentation</code></td><td>Tabs to multiples of 8; compare with the stack; INDENT / DEDENT / UNRECOGNIZED</td><td>Mithulram</td></tr>
+<tr><td><code>ChocoPy.jflex</code> <code>integerSymbol</code>, <code>stringSymbol</code></td><td>Overflow → UNRECOGNIZED; decode escapes; IDSTRING vs STRING</td><td>Mithulram</td></tr>
+<tr><td><code>ChocoPy.jflex</code> <code>&lt;YYINITIAL&gt;</code> rules</td><td>Blank/comment lines ignored; real line → indentation</td><td>Mithulram</td></tr>
+<tr><td><code>ChocoPy.jflex</code> <code>&lt;CODE&gt;</code> rules</td><td>Keywords, RESERVED words, identifiers, literals, operators</td><td>Mithulram</td></tr>
+<tr><td><code>ChocoPy.jflex</code> <code>&lt;&lt;EOF&gt;&gt;</code></td><td>Missing NEWLINE, then one DEDENT per open block, then EOF</td><td>Mithulram</td></tr>
+<tr><td><code>ChocoPy.cup</code> parser code</td><td><code>syntax_error</code> (uses token text), <code>enableDefaultReductions</code>, <code>init with</code></td><td>Dinodi</td></tr>
+<tr><td><code>ChocoPy.cup</code> terminals / precedence</td><td>Token names = reference names; the precedence table from manual §4.1</td><td>Nafeel</td></tr>
+<tr><td><code>ChocoPy.cup</code> program, top_decls</td><td>Declarations before statements; program location; decl-level <code>error</code></td><td>Nafeel</td></tr>
+<tr><td><code>ChocoPy.cup</code> class_def, func_def, var_def</td><td>Declarations, "&lt;None&gt;" return type, anchored recovery rules</td><td>Nafeel / Dinodi</td></tr>
+<tr><td><code>ChocoPy.cup</code> stmt, block, elif_else</td><td>Statements, elif desugaring, block-end locations</td><td>Nafeel</td></tr>
+<tr><td><code>ChocoPy.cup</code> expr, cexpr, literal</td><td>Expressions: the expr/cexpr split, %prec UMINUS</td><td>Nafeel</td></tr>
+<tr><td><code>tools/difftest.py</code></td><td>Compare with the reference using the grader's rule (parallel)</td><td>Dinodi</td></tr>
+<tr><td><code>tools/fuzz.py</code></td><td>Random valid programs + one-defect mutants</td><td>Dinodi</td></tr>
+<tr><td><code>tools/recovery_quality.py</code></td><td>Metric: errors per real mistake, code kept, aborted parses</td><td>Dinodi</td></tr>
+<tr><td><code>tools/ast_tree.py</code></td><td>Pretty-print a JSON AST as a tree (for the demo)</td><td>Dinodi</td></tr>
+<tr><td><code>src/test/data/pa1/edge_cases/</code></td><td>44 hand-written cases + expected <code>.ast</code> from the reference</td><td>Dinodi</td></tr>
+<tr><td><code>student_contributed/good.py, bad.py</code></td><td>Graded: feature coverage; one error per mistake</td><td>Dinodi</td></tr>
+</table>
+<p class="small muted">Owner = who presents it and answers first. Everyone must still be able to explain all of it.</p>
+
+<h2 class="pb">4. Concepts each of us must be able to explain in 30 seconds</h2>
+<div class="two"><div>
+<h4>Lexical states (YYINITIAL, CODE)</h4>
+<p>JFlex rules can be limited to a state, and <code>yybegin(S)</code> switches state. Our YYINITIAL means "start of a line, indentation not handled yet".
+CODE means "inside the line".</p>
+<h4>Longest match, then rule order</h4>
+<p>JFlex takes the longest possible match. On a tie, the rule written first wins. So <code>classic</code> is an identifier (longer than
+<code>class</code>), but <code>class</code> alone is the keyword (same length, keyword rule first).</p>
+<h4><code>yypushback(n)</code></h4>
+<p>Gives the last n matched characters back to the input. We use it twice: to un-read the first character of a line, and to re-scan the
+whitespace once per DEDENT.</p>
+<h4>Why indentation needs Java code</h4>
+<p>Matching INDENT/DEDENT needs a stack (counting), and regular expressions cannot count. So the regex only finds the whitespace, and the
+stack logic is Java in the action.</p>
+<h4>LALR(1)</h4>
+<p>A bottom-up parser with one token of lookahead. It <i>shifts</i> tokens onto a stack and <i>reduces</i> the right-hand side of a rule to its
+left-hand side. LALR merges LR(1) states with the same core: the tables are smaller, but in rare cases this creates "mysterious"
+reduce/reduce conflicts (we had none).</p>
+<h4>Shift/reduce and reduce/reduce conflicts</h4>
+<p>S/R: in one state the parser could either shift the next token or reduce. Example: <code>a + b · + c</code>. Precedence settles it.
+R/R: two different reductions are possible. That's a grammar design error (ours came from two error rules, C17).</p>
+</div><div>
+<h4>precedence, nonassoc, %prec</h4>
+<p>CUP compares the precedence of the rule (its last terminal) with the lookahead token. Higher token → shift, higher rule → reduce. On a tie,
+<code>left</code> → reduce, <code>right</code> → shift, <code>nonassoc</code> → error (that's how <code>a&lt;b&lt;c</code> fails). <code>%prec
+UMINUS</code> gives unary minus the precedence of a dummy token.</p>
+<h4>xleft / xright</h4>
+<p>For every labelled symbol <code>e</code>, CUP provides <code>exleft</code>/<code>exright</code>: the location of its leftmost and rightmost
+<i>token</i>. A node spans from the leftmost symbol's xleft to the rightmost symbol's xright.</p>
+<h4>Node location vs symbol location</h4>
+<p>The <code>func_def</code> symbol includes its closing DEDENT. The <code>FuncDef</code> node ends at its body. A class ends at its last member's
+<i>symbol</i>, so it ends at that DEDENT (coverage: method [34,22], class [36,0]).</p>
+<h4>CUP error recovery</h4>
+<p>(1) Report the error. (2) Pop states until one can shift <code>error</code>. (3) Shift it. (4) Throw away input tokens until the next 3
+(<code>error_sync_size</code>) parse cleanly. (5) Continue. If it reaches EOF without managing that, it gives up.</p>
+<h4>Default reductions</h4>
+<p>In a state whose only possible action is one reduction, do it on <i>any</i> lookahead (Bison does this by default). It lets the parser finish a
+statement before it notices that the next token is wrong. The error position is unchanged.</p>
+<h4>Desugaring</h4>
+<p>Turning syntax that is only a convenience into a simpler core form. <code>elif</code> → nested <code>IfStmt</code> in <code>elseBody</code>.</p>
+</div></div>
+
+<h2>5. Numbers to know by heart</h2>
+<table>
+<tr><th>Fact</th><th>Value</th></tr>
+<tr><td>Provided sample tests / our edge-case tests</td><td>33/33 · 44/44</td></tr>
+<tr><td>Random programs compared with the reference (valid + mutated)</td><td>3,511 files, all identical</td></tr>
+<tr><td>Differences the fuzzer found <i>after</i> we passed all samples</td><td>13 (in the first 600 programs)</td></tr>
+<tr><td>LALR conflicts</td><td>0</td></tr>
+<tr><td>Recovery: exactly one error per real mistake</td><td>reference 45% · ours 75%</td></tr>
+<tr><td>Recovery: average errors per real mistake</td><td>reference 2.0 · ours 1.4</td></tr>
+<tr><td>Recovery: parses that gave up (346 programs)</td><td>reference 3 · ours 0</td></tr>
+<tr><td>Tab width / largest integer</td><td>8 · 2,147,483,647</td></tr>
+<tr><td>Token names you'll be asked about</td><td>EQ (=) vs EQEQ (==), LINDEX/RINDEX ([ ]), IDIV (//), RESERVED, UNRECOGNIZED, IDSTRING</td></tr>
+<tr><td>Lines of code</td><td>lexer ≈ 450 · grammar ≈ 730 (about half of each is comments)</td></tr>
+</table>
+
+<h2 class="pb">6. Who presents what (15 minutes)</h2>
+<p>The deck follows the chair's presentation format (the Metropolis look of the lab's own slides: dark header, orange progress bar) and a thesis-defence structure: an outline slide opens every section.</p>
+<table>
+<tr><th style="width:7%">#</th><th>Slide</th><th style="width:16%">Speaker</th><th style="width:9%">Time</th></tr>
+<tr><td>1</td><td>Title</td><td>Mithulram</td><td>0:15</td></tr>
+<tr><td>2</td><td>Outline</td><td>Mithulram</td><td>0:15</td></tr>
+<tr><td>3</td><td>Motivation: matching the reference exactly + scoreboard</td><td>Mithulram</td><td>0:45</td></tr>
+<tr><td>4</td><td>Approach: the reference as an oracle (read → probe → build → fuzz → measure)</td><td>Mithulram</td><td>0:45</td></tr>
+<tr><td>5</td><td>Outline → Lexer</td><td>Mithulram</td><td>0:05</td></tr>
+<tr><td>6</td><td>Challenge 1: one line, many DEDENTs (yypushback loop)</td><td>Mithulram</td><td>1:10</td></tr>
+<tr><td>7</td><td>Challenge 2: where is a DEDENT? (locations + EOF quirk)</td><td>Mithulram</td><td>1:00</td></tr>
+<tr><td>8</td><td>Challenge 3: strings (build error → redesign → quirks)</td><td>Mithulram</td><td>0:50</td></tr>
+<tr><td>9</td><td>Outline → Parser</td><td>Nafeel</td><td>0:05</td></tr>
+<tr><td>10</td><td>Grammar: expr/cexpr split, precedence, 0 conflicts</td><td>Nafeel</td><td>0:50</td></tr>
+<tr><td>11</td><td>Challenge 4: locations from symbols, not nodes</td><td>Nafeel</td><td>1:05</td></tr>
+<tr><td>12</td><td>Challenge 5: elif desugaring</td><td>Nafeel</td><td>0:35</td></tr>
+<tr><td>13</td><td>Outline → Error recovery</td><td>Dinodi</td><td>0:05</td></tr>
+<tr><td>14</td><td>Challenge 6: cascades → anchored rules</td><td>Dinodi</td><td>1:00</td></tr>
+<tr><td>15</td><td>Challenge 7: the vanishing statement → default reductions</td><td>Dinodi</td><td>1:00</td></tr>
+<tr><td>16</td><td>Challenge 8: the abort trap</td><td>Dinodi</td><td>0:55</td></tr>
+<tr><td>17</td><td>Outline → Evaluation</td><td>Dinodi</td><td>0:05</td></tr>
+<tr><td>18</td><td>Evaluation I: differential testing</td><td>Dinodi</td><td>0:45</td></tr>
+<tr><td>19</td><td>Evaluation II: recovery quality (chart)</td><td>Dinodi</td><td>0:40</td></tr>
+<tr><td>20</td><td>Contribution: three reference bugs</td><td>Dinodi</td><td>0:35</td></tr>
+<tr><td>21</td><td>Outline → Conclusion and future work</td><td>Nafeel</td><td>0:05</td></tr>
+<tr><td>22</td><td>Limitations and future work</td><td>Nafeel</td><td>0:40</td></tr>
+<tr><td>23</td><td>Conclusion</td><td>Nafeel</td><td>0:25</td></tr>
+<tr><td>24</td><td>Thank you — questions?</td><td>all</td><td></td></tr>
+<tr><td>25–26</td><td>Backup: CUP recovery algorithm · running it</td><td>on demand</td><td></td></tr>
+</table>
+<p>Total ≈ 13:40: Mithulram 4:55 · Nafeel 3:40 · Dinodi 5:05, which leaves over a minute of slack for the hand-overs. Hand-overs:
+Mithulram → Nafeel after slide 8 ("…so the tokens are right. Nafeel shows what the parser does with them."). Nafeel → Dinodi after slide 12
+("…that's valid programs. Dinodi: what happens when the input is wrong?"). Dinodi → Nafeel for slide 21. The speaker notes in the .pptx
+contain the full talk track for every slide.</p>
+
+<div class="box warn"><span class="tag">Guideline reminders</span>
+<ul>
+<li>Do <b>not</b> explain what ChocoPy, JFlex, CUP or LALR <i>are</i>. The audience built the same project. Talk only about <i>our</i> problems and fixes.</li>
+<li>Mention what we <b>could not</b> fully solve (slide 22). Technical depth is graded.</li>
+<li>Everyone speaks, and everyone answers questions. Never say "that was not my part".</li>
+<li>Attendance is mandatory. If someone is ill, get an official certificate.</li>
+</ul></div>
+
+<h2>7. Q&amp;A protocol</h2>
+<ul>
+<li><b>First answerer = owner</b> of that area (code map), but anyone may add: "If I may add one detail…". Keep answers to 20–40 seconds:
+the answer first, then the reason, then the place in the code.</li>
+<li><b>Show the code</b> when a question is about a specific mechanism. Keep <code>ChocoPy.jflex</code> and <code>ChocoPy.cup</code> open in the
+editor, with font size ≥ 18 pt.</li>
+<li><b>If you don't know:</b> "We didn't test that exact case. Based on how the lexer works, I'd expect … We can check it right now."
+Then run it. A live check is better than a guess.</li>
+<li><b>Drill:</b> each of us answers 10 random questions from the Q&amp;A document <i>outside</i> our own area, at least twice before 12.11.</li>
+</ul>
+
+<h2>8. Study and rehearsal plan</h2>
+<table>
+<tr><th style="width:24%">When</th><th>What</th></tr>
+<tr><td>Now → Sun 01.11</td><td>Each member reads both source files completely (the comments explain every decision) and Documents 1 and 2.
+Run every command in the Demo Runbook on your own laptop.</td></tr>
+<tr><td>Mon 02.11</td><td>Team call: everyone explains the other two members' areas (lexer / parser / recovery) in 3 minutes each. Fix
+anything that's unclear.</td></tr>
+<tr><td>Tue 03.11</td><td>Final check, then the <b>submission</b> (checklist below). One member uploads; the others check the upload.</td></tr>
+<tr><td>Wed 04.11, 23:59</td><td><b>Deadline.</b> Upload by Tuesday, not on the last evening.</td></tr>
+<tr><td>05.11 → 10.11</td><td>Two full timed rehearsals (≤ 14:30) + a Q&amp;A drill. Trim slides if you run over.</td></tr>
+<tr><td>Wed 11.11</td><td>Dress rehearsal with the demo on the presenting laptop. Pre-build the project. Check the HDMI/USB-C adapter.</td></tr>
+<tr><td>Thu 12.11</td><td><b>Presentation.</b> Arrive early. Laptop charged, project built, slides + PDF backup on a USB stick.</td></tr>
+</table>
+
+<h2 class="pb">9. Checklists</h2>
+<div class="two"><div>
+<h3>Submission (by 04.11, 23:59)</h3>
+<ul>
+<li>☐ Names in README are spelled correctly; hours estimate and contributions are what we agree on.</li>
+<li>☐ <code>mvn clean package</code> passes; 33/33 samples pass.</li>
+<li>☐ <code>good.py</code> parses with no errors, and <code>bad.py</code> gives ≥ 2 errors on distinct lines.</li>
+<li>☐ README line numbers still point at the right code (they move if you edit the files).</li>
+<li>☐ <code>mvn clean</code> run, no <code>target/</code>, no <code>.git</code>, no <code>.DS_Store</code>.</li>
+<li>☐ File named <code>pa1_group_5.zip</code>, uploaded to <b>SubmissionsDir</b> on Stud.IP.</li>
+<li>☐ Download the upload again, unzip it into an empty folder, build it and test it. (The prepared zip is in <code>PA1/submission/</code>.)</li>
+</ul>
+</div><div>
+<h3>Presentation day</h3>
+<ul>
+<li>☐ Laptop charged + charger; HDMI and USB-C adapters.</li>
+<li>☐ <code>.pptx</code> and <code>.pdf</code> of the slides on the laptop <b>and</b> on a USB stick.</li>
+<li>☐ Project pre-built (<code>target/assignment.jar</code> exists), so no network is needed.</li>
+<li>☐ Terminal font ≥ 20 pt, opened in <code>PA1/</code>, notifications off, Wi-Fi not required.</li>
+<li>☐ Editor open on both source files, font ≥ 18 pt.</li>
+<li>☐ Demo dry-run done that morning (<code>bash demo/demo.sh</code>).</li>
+<li>☐ Everyone knows the 60-second version and the slide order.</li>
+</ul>
+</div></div>
+
+<h2>10. Glossary</h2>
+<table>
+<tr><th style="width:26%">Term</th><th>Meaning in our project</th></tr>
+<tr><td>Logical vs physical line</td><td>Physical = text up to a line break. Logical = a physical line with at least one real token (blank/comment lines are not logical lines).</td></tr>
+<tr><td>INDENT / DEDENT</td><td>Tokens the lexer creates from changes in leading whitespace; they work like { and } around a block.</td></tr>
+<tr><td>UNRECOGNIZED</td><td>Dummy token for anything the lexer cannot accept. No grammar rule uses it, so it always causes a syntax error.</td></tr>
+<tr><td>RESERVED</td><td>Python keywords that ChocoPy forbids as names but never uses (lambda, import, …).</td></tr>
+<tr><td>IDSTRING</td><td>A string literal whose contents look like an identifier (<code>"Node"</code>). Allowed as a type annotation.</td></tr>
+<tr><td>Oracle</td><td>A trusted implementation used to decide the expected output: here, <code>chocopy-ref.jar</code>.</td></tr>
+<tr><td>Differential testing</td><td>Run two implementations on the same input and compare the results.</td></tr>
+<tr><td>Mutant</td><td>A valid program with one deliberate defect, used to test error handling.</td></tr>
+<tr><td>Anchored recovery rule</td><td>An error rule with tokens after <code>error</code> (e.g. <code>error NEWLINE</code>) that tells CUP where to resume.</td></tr>
+<tr><td>Consistent state</td><td>An LR state with exactly one possible action, which is a reduction.</td></tr>
+<tr><td>Cascade</td><td>Extra, misleading errors caused by poor recovery from one real mistake.</td></tr>
+</table>
+
+</body>
+</html>

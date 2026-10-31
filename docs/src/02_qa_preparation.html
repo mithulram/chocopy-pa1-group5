@@ -1,0 +1,358 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>PA1 Q&amp;A Preparation</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="cover">
+  <div class="kicker">Compiler Construction Lab · PA1 · Group 5</div>
+  <h1>Q&amp;A Preparation</h1>
+  <div class="sub">60 questions the instructors and classmates are likely to ask after our talk, with answers you can say out loud
+  and the place in the code to point at.</div>
+  <div class="meta">How to answer: answer first → one sentence of "why" → point to the code. 20–40 seconds. If you don't know: say what you'd expect and offer to check it live.</div>
+</div>
+
+<div class="toc">
+  <div>A. The big picture (1–5)</div>
+  <div>B. Indentation (6–15)</div>
+  <div>C. Other lexer questions (16–24)</div>
+  <div>D. Grammar and precedence (25–36)</div>
+  <div>E. Source locations (37–41)</div>
+  <div>F. Error handling and recovery (42–51)</div>
+  <div>G. Testing (52–55)</div>
+  <div>H. Team, process, AI, and what comes next (56–60)</div>
+</div>
+
+<!-- ===================================================== A -->
+<h2>A. The big picture</h2>
+
+<div class="qa"><div class="q"><span class="qn">Q1</span>What was the hardest part of PA1 for you?</div><div class="a">
+<p>Getting a parser that <i>accepts</i> ChocoPy was not the hard part. Matching the reference's AST <b>exactly, every line and column</b>, was.
+The locations follow conventions that no document describes, for example that a block ends at the indentation of the <i>next</i> line.
+After that came error recovery, where we measured that the reference reports on average more than two errors for one real mistake.</p>
+<p class="ptr">→ Doc 1, C4, C13, C18 · slide 3</p></div></div>
+
+<div class="qa"><div class="q"><span class="qn">Q2</span>Walk us through what happens to a program, from text to JSON.</div><div class="a">
+<p>The driver calls <code>StudentParser.process</code>, which creates our lexer and parser. CUP pulls tokens from the lexer one at a time: in
+state YYINITIAL we handle indentation, and in CODE the ordinary tokens. The LALR tables shift and reduce. On every reduction our action code
+builds the AST node with its location. The <code>Program</code> node holds the <code>Errors</code> list, and Jackson in the provided driver
+turns the tree into JSON.</p>
+<p class="ptr">→ Team Prep Pack §2</p></div></div>
+
+<div class="qa"><div class="q"><span class="qn">Q3</span>What did you change in the provided starter code, and why?</div><div class="a">
+<p>We left the token-factory code and <code>parseProgram</code> as they were. We changed two things in the parser code: <code>syntax_error</code>
+asks the lexer for the text of the <i>specific</i> token instead of <code>yytext()</code>, and we added <code>enableDefaultReductions</code> with
+an <code>init with</code> hook. We did not touch anything in <code>chocopy.common</code> or <code>pom.xml</code>, as the spec requires.</p></div></div>
+
+<div class="qa"><div class="q"><span class="qn">Q4</span>How do you know your parser is correct beyond the 33 samples?</div><div class="a">
+<p>Differential testing. Our generator writes random valid programs (mixed tabs/spaces, CR/LF/CRLF, comments, missing final newline) and a
+mutated copy of each. Our tester compares our output with the reference using the grader's rule: the full AST for valid programs, the first
+error's location for invalid ones. 3,511 files in the final run, all identical. The tester found 13 differences that all 33 samples had missed.</p>
+<p class="ptr">→ <code>tools/fuzz.py</code>, <code>tools/difftest.py</code> · Doc 1, C21</p></div></div>
+
+<div class="qa"><div class="q"><span class="qn">Q5</span>If you had another week, what would you improve?</div><div class="a">
+<p>Recovery that keeps the body of a statement whose header is broken: today we parse and check it, but drop it from the AST. And clearer
+error messages, e.g. "unindent does not match any outer level" instead of only "UNRECOGNIZED". That would mean giving up byte-for-byte
+agreement with the reference's messages, which aren't graded anyway.</p></div></div>
+
+<!-- ===================================================== B -->
+<h2 class="pb">B. Indentation</h2>
+
+<div class="qa"><div class="q"><span class="qn">Q6</span>How do you emit several DEDENTs for one line? A JFlex action can only return one token.</div><div class="a">
+<p>We pop one level, build one DEDENT, and push the line's whitespace back into the input with <code>yypushback(yylength())</code>. The next call
+matches the same whitespace again, compares it with the smaller stack, and emits the next DEDENT. That repeats until the levels are equal.
+The only state is the stack.</p>
+<p class="ptr">→ <code>ChocoPy.jflex</code> <code>processIndentation()</code></p></div></div>
+
+<div class="qa"><div class="q"><span class="qn">Q7</span>Why not just keep a queue of pending tokens?</div><div class="a">
+<p>That works too, but you have to wrap the generated <code>next_token()</code> and keep the queue in step with JFlex's line/column
+counters. Re-scanning reuses JFlex's own machinery. The positions come out right automatically, and it's about five lines.</p></div></div>
+
+<div class="qa"><div class="q"><span class="qn">Q8</span>How do you handle a line with zero indentation? Doesn't the whitespace regex match the empty string?</div><div class="a">
+<p>It would, and JFlex can't fire on an empty match. So we match the whitespace <b>plus the first real character</b>
+(<code>{WhiteSpace}* [^ \t\r\n#]</code>) and give the character back with <code>yypushback(1)</code>. The match is never empty, and
+<code>yytext()</code> is then exactly the indentation.</p></div></div>
+
+<div class="qa"><div class="q"><span class="qn">Q9</span>How are tabs handled? What about mixing tabs and spaces?</div><div class="a">
+<p>As in the manual: a tab moves to the next multiple of 8. One tab and eight spaces are therefore the same level, and "4 spaces + tab" is 8.
+We accept mixing, because the manual defines it. Python 3 would raise a <code>TabError</code> for ambiguous mixing, but that rule isn't part of
+ChocoPy.</p>
+<p class="ptr">→ <code>indentationWidth()</code> · edge case <code>indent_tabs_mixed.py</code></p></div></div>
+
+<div class="qa"><div class="q"><span class="qn">Q10</span>What about blank lines and comments, including a comment indented deeper than its block?</div><div class="a">
+<p>They're not logical lines, so they produce no NEWLINE and their indentation is ignored (manual §3.1.4). In YYINITIAL a rule matches
+<code>whitespace* comment? linebreak</code> and discards it, and longest match makes sure it beats the indentation rule. There are two extra
+variants for the last line of a file without a line break.</p>
+<p class="ptr">→ edge case <code>blank_and_comment_lines.py</code></p></div></div>
+
+<div class="qa"><div class="q"><span class="qn">Q11</span>What if the very first line is indented?</div><div class="a">
+<p>Its width is larger than the 0 on the stack, so we emit an INDENT. No rule allows an INDENT at the top level, so the parser reports "Parse error
+near token INDENT" at (1,1), exactly like the reference.</p>
+<p class="ptr">→ <code>bad_unexpected_indent_first_line.py</code></p></div></div>
+
+<div class="qa"><div class="q"><span class="qn">Q12</span>What happens with a dedent to a level that was never opened?</div><div class="a">
+<p>Levels 0,4,8 and a line at 2. We pop every level larger than 2, one DEDENT each. The stack is then below the line's width, so we emit an
+<code>UNRECOGNIZED</code> token and treat the line as belonging to the enclosing level. The parser reports the error at that line. The
+reference pops only one level, and its INDENT/DEDENT become unbalanced: it reports a second, bogus error at EOF. That's our bug report #1.</p>
+<p class="ptr">→ demo <code>5_reference_bug.py</code></p></div></div>
+
+<div class="qa"><div class="q"><span class="qn">Q13</span>What happens at end of file?</div><div class="a">
+<p>The <code>&lt;&lt;EOF&gt;&gt;</code> rule runs again on every call. If we're still in CODE, the last line had no line break, so we emit the
+missing NEWLINE first. Then we emit one DEDENT per call while the stack is above 0, and finally EOF.</p></div></div>
+
+<div class="qa"><div class="q"><span class="qn">Q14</span>Why does a DEDENT have a location at all, and why that one?</div><div class="a">
+<p>Because the AST takes the end of every compound statement from it. We found the rule in <code>coverage.py.ast</code>: an IfStmt that ends
+at <code>[19,8]</code> when line 19 is indented by 8. So the DEDENT spans the leading whitespace of the line that closes the block,
+<code>[L,1,L,width]</code>. We build the token before pushing the whitespace back; otherwise its length would already be 0.</p></div></div>
+
+<div class="qa"><div class="q"><span class="qn">Q15</span>Why do nested blocks that end at EOF end at different columns?</div><div class="a">
+<p>Because the reference does that. Its EOF DEDENTs sit at columns 1, 2, 3, …, which is a quirk, since that text doesn't exist. The grader
+compares locations, so we copy it in <code>eofSymbol()</code> and documented it as bug #2. Undoing it is one line.</p></div></div>
+
+<!-- ===================================================== C -->
+<h2>C. Other lexer questions</h2>
+
+<div class="qa"><div class="q"><span class="qn">Q16</span>How do you tell keywords from identifiers, e.g. <code>classic</code> vs <code>class</code>?</div><div class="a">
+<p>JFlex picks the longest match, and on a tie the earlier rule. <code>classic</code> is longer as an identifier, so it's an identifier.
+<code>class</code> alone is a tie, and the keyword rule comes first.</p></div></div>
+
+<div class="qa"><div class="q"><span class="qn">Q17</span>Why is the lexer not allowed to report errors? What do you do instead?</div><div class="a">
+<p>The spec requires all errors to come from the parser, in one format and one list. Anything unacceptable becomes an <code>UNRECOGNIZED</code>
+token, which appears in no rule. The parser then reports "Parse error near token UNRECOGNIZED: …" at exactly that position.</p></div></div>
+
+<div class="qa"><div class="q"><span class="qn">Q18</span>What's the RESERVED token?</div><div class="a">
+<p>The 16 Python keywords that ChocoPy forbids as names but never uses, such as <code>lambda</code>, <code>import</code>, <code>async</code>. They
+must not lex as identifiers (manual §3.3), and no rule accepts them, so using one is a syntax error. The reference uses the same name.</p></div></div>
+
+<div class="qa"><div class="q"><span class="qn">Q19</span>How do you handle string escapes, and what's illegal?</div><div class="a">
+<p>One regex finds where the literal ends, and <code>stringSymbol()</code> decodes it: <code>\" \n \t \\</code> are legal. Any other escape,
+or a character outside ASCII 32–126 (such as a raw tab), makes the <b>whole literal</b> a single UNRECOGNIZED token, as in the reference.</p></div></div>
+
+<div class="qa"><div class="q"><span class="qn">Q20</span>What's IDSTRING, and why is it needed?</div><div class="a">
+<p>A string whose contents look like an identifier, e.g. <code>"Node"</code>. In type annotations only IDSTRING is allowed
+(<code>self: "Node"</code>, used for classes that aren't defined yet). As a value, both kinds are simply a StringLiteral.</p></div></div>
+
+<div class="qa"><div class="q"><span class="qn">Q21</span>What about an unterminated string?</div><div class="a">
+<p>If there's no closing quote anywhere later, the lone <code>"</code> becomes UNRECOGNIZED and lexing continues right after it, as in the
+reference. If a quote <i>does</i> follow later, the reference's match runs across lines up to that quote. We copy that and report it as bug #3.</p></div></div>
+
+<div class="qa"><div class="q"><span class="qn">Q22</span>How do you handle 2147483648? And how would someone write −2147483648?</div><div class="a">
+<p>We parse with <code>Integer.parseInt</code>. Overflow throws, and the literal becomes UNRECOGNIZED. The minimum int <i>can't</i> be written
+directly, because the minus is a separate unary operator applied to an out-of-range literal. That follows from manual §3.4.2, and the reference agrees.</p></div></div>
+
+<div class="qa"><div class="q"><span class="qn">Q23</span>Why is <code>007</code> an error, and where exactly?</div><div class="a">
+<p>The integer rule is <code>0 | [1-9][0-9]*</code>. Longest match splits <code>007</code> into <code>0</code>, <code>0</code>, <code>7</code>. Two
+integers in a row is a syntax error, reported at the second <code>0</code>, the same column as the reference.</p></div></div>
+
+<div class="qa"><div class="q"><span class="qn">Q24</span>Your first string regex didn't compile. Why?</div><div class="a">
+<p>We wrote the character class with <code>\u005B</code> for <code>[</code>. JFlex replaces <code>\uXXXX</code> escapes <b>before</b> parsing the
+regex (like javac), so it became a bare <code>[</code> inside the class: a syntax error. We now write the characters escaped:
+<code>[ !#-\[\]-~]</code>.</p></div></div>
+
+<!-- ===================================================== D -->
+<h2 class="pb">D. Grammar and precedence</h2>
+
+<div class="qa"><div class="q"><span class="qn">Q25</span>How did you implement operator precedence?</div><div class="a">
+<p>With CUP <code>precedence</code> declarations that follow the manual's §4.1 table, rather than one nonterminal per level. In a shift/reduce
+situation CUP compares the rule's precedence (its last terminal) with the lookahead's: the higher one wins. On a tie, <code>left</code> reduces,
+<code>right</code> shifts, and <code>nonassoc</code> is an error.</p>
+<p class="ptr">→ <code>ChocoPy.cup</code> precedence block</p></div></div>
+
+<div class="qa"><div class="q"><span class="qn">Q26</span>Why is <code>True == not False</code> a syntax error?</div><div class="a">
+<p>Because of the manual's <code>expr</code>/<code>cexpr</code> split, which we kept. <code>==</code> only combines two <code>cexpr</code>s, and
+<code>not …</code> is an <code>expr</code>. So after <code>==</code>, a <code>not</code> can't start an operand. The manual asks for exactly this.
+You have to write <code>True == (not False)</code>.</p></div></div>
+
+<div class="qa"><div class="q"><span class="qn">Q27</span>How is <code>a &lt; b &lt; c</code> rejected?</div><div class="a">
+<p>The comparisons are <code>nonassoc</code>. In the state <code>cexpr &lt; cexpr · &lt;</code> both have the same precedence, and nonassoc turns
+that into an error entry in the table. The error is reported at the second <code>&lt;</code>.</p></div></div>
+
+<div class="qa"><div class="q"><span class="qn">Q28</span>What's <code>%prec UMINUS</code> for?</div><div class="a">
+<p>The minus token is shared by binary and unary minus, but unary minus binds tighter than <code>*</code>. <code>UMINUS</code> is a dummy terminal
+the lexer never produces. <code>%prec UMINUS</code> gives the rule <code>MINUS cexpr</code> that terminal's higher precedence, so
+<code>-a * b</code> is <code>(-a) * b</code>. Because <code>.</code> and <code>[ ]</code> are higher still, <code>-a.b</code> is <code>-(a.b)</code>.</p></div></div>
+
+<div class="qa"><div class="q"><span class="qn">Q29</span>How did you deal with the dangling-else problem?</div><div class="a">
+<p>For statements it doesn't exist: blocks are closed by DEDENT, so an <code>else</code> always belongs to the <code>if</code> at its indentation. For
+the conditional expression, <code>IF</code>/<code>ELSE</code> are declared <code>right</code> with the lowest precedence, so
+<code>a if b else c if d else e</code> nests to the right, as in Python.</p></div></div>
+
+<div class="qa"><div class="q"><span class="qn">Q30</span>How many conflicts does your grammar have? How do you know?</div><div class="a">
+<p>Zero. CUP prints every shift/reduce and reduce/reduce conflict, and since our <code>pom.xml</code> has no <code>expect</code> option, even one
+conflict would fail the build. The only warnings are the two terminals that are deliberately unused: <code>RESERVED</code> and <code>UNRECOGNIZED</code>.</p></div></div>
+
+<div class="qa"><div class="q"><span class="qn">Q31</span>A variable definition and a statement can both start with an identifier. Is that a problem for LALR(1)?</div><div class="a">
+<p>No. After shifting the identifier, one token of lookahead decides: <code>:</code> means a typed variable (declaration), and anything else
+means an expression or target. The rule "declarations before statements" comes out of the grammar's shape:
+<code>program ::= top_decls stmt_list</code>.</p></div></div>
+
+<div class="qa"><div class="q"><span class="qn">Q32</span>How do chained assignments like <code>a = b.c = d[0] = 1</code> work?</div><div class="a">
+<p><code>assign_targets ::= target EQ | assign_targets target EQ</code>, where a target is an identifier, member expression or index expression.
+After such an expression, a following <code>=</code> reduces it to a target. Because <code>=</code> (EQ) never follows an expression anywhere
+else, there's no conflict. The AssignStmt gets all targets in order.</p></div></div>
+
+<div class="qa"><div class="q"><span class="qn">Q33</span>How is <code>elif</code> represented in the AST?</div><div class="a">
+<p>It isn't. It's syntactic sugar: <code>if a: X elif b: Y else: Z</code> becomes <code>IfStmt(a, X, [IfStmt(b, Y, Z)])</code>. The right-recursive
+<code>elif_else</code> rule returns a one-element list containing the nested IfStmt, so the chain nests naturally.</p>
+<p class="ptr">→ demo step 3</p></div></div>
+
+<div class="qa"><div class="q"><span class="qn">Q34</span>You use left recursion for lists, but right recursion for elif. Why?</div><div class="a">
+<p>Left recursion keeps the LR stack small: each element is reduced immediately. Right recursion pushes everything first. For elif, right recursion
+is what we <i>want</i>, because the tree must nest to the right, and elif chains are short.</p></div></div>
+
+<div class="qa"><div class="q"><span class="qn">Q35</span>Where is <code>pass</code> in the AST? And a function without <code>-&gt; type</code>?</div><div class="a">
+<p><code>pass</code> builds no node: the action returns <code>null</code>, and our list helpers skip nulls, as in the reference. For a missing
+return type, the AST still gets <code>ClassType "&lt;None&gt;"</code>, located at the header's colon. We learned that by probing the reference.</p></div></div>
+
+<div class="qa"><div class="q"><span class="qn">Q36</span>Why is <code>f()(1)</code> a syntax error?</div><div class="a">
+<p>In ChocoPy's grammar a call is <code>ID ( args )</code> or <code>member_expr ( args )</code>. Only a name or a method can be called, not an
+arbitrary expression. So after <code>f()</code>, a <code>(</code> is invalid.</p></div></div>
+
+<!-- ===================================================== E -->
+<h2 class="pb">E. Source locations</h2>
+
+<div class="qa"><div class="q"><span class="qn">Q37</span>How do you compute a node's location?</div><div class="a">
+<p>From the leftmost symbol's left edge to the rightmost symbol's right edge. CUP provides <code>xleft</code>/<code>xright</code> for every
+labelled symbol. For a nonterminal, that's the span of all its tokens.</p></div></div>
+
+<div class="qa"><div class="q"><span class="qn">Q38</span>Why does an <code>if</code> statement end at the column of the next line's indentation?</div><div class="a">
+<p>Its last symbol is the block, the block's last token is the DEDENT, and the DEDENT spans the next line's leading whitespace. So
+<code>[16,13,19,8]</code> in coverage.py: the next line is indented by 8.</p></div></div>
+
+<div class="qa"><div class="q"><span class="qn">Q39</span>In coverage.py a method ends at [34,22] but its class at [36,0]. Why?</div><div class="a">
+<p>Node location vs symbol location. The <code>FuncDef</code> node ends at its body, the last NEWLINE. The <code>func_def</code> <i>grammar
+symbol</i> also includes the closing DEDENT on line 36, which has zero indentation, so column 0. The class ends at its last member's
+<i>symbol</i>, hence [36,0].</p></div></div>
+
+<div class="qa"><div class="q"><span class="qn">Q40</span>Which location bug did the fuzzer find?</div><div class="a">
+<p>Programs that start with <code>pass</code>, and <code>else: pass</code>. <code>pass</code> creates no node, and we had computed locations from
+nodes and from whether a list was empty. The reference uses grammar symbols. We split the rules (if with or without an else part) so
+locations always come from symbols.</p></div></div>
+
+<div class="qa"><div class="q"><span class="qn">Q41</span>What's the location of a whole program, and of an empty one?</div><div class="a">
+<p>From the first declaration or statement to the last token consumed, which is a NEWLINE or a DEDENT. An empty file is
+<code>[0,0,0,0]</code>, because Node uses 0 for a null location.</p></div></div>
+
+<!-- ===================================================== F -->
+<h2>F. Error handling and recovery</h2>
+
+<div class="qa"><div class="q"><span class="qn">Q42</span>Explain how CUP recovers from an error.</div><div class="a">
+<p>It reports the error, then pops states until it finds one that can shift the special <code>error</code> token, and shifts it. Then it
+discards input tokens until the next three (<code>error_sync_size</code>) can be parsed, and continues. If it reaches EOF before that works,
+it gives up on the rest of the file.</p></div></div>
+
+<div class="qa"><div class="q"><span class="qn">Q43</span>Why do you have separate statement lists (<code>stmt_list</code> and <code>block_stmts</code>)?</div><div class="a">
+<p>To avoid a reduce/reduce conflict. At the top level, right after the declarations, both a declaration and a statement can begin. If both had
+an <code>error</code> rule live there, shifting <code>error</code> would lead to a state with two completed items. So the top-level statement list
+only accepts errors <i>after</i> its first statement. Inside blocks and function bodies nothing competes, so <code>block_stmts</code> may even start
+with <code>error</code>.</p></div></div>
+
+<div class="qa"><div class="q"><span class="qn">Q44</span>What are your "anchored" recovery rules?</div><div class="a">
+<p>Error rules with a token after <code>error</code>, which tells CUP where to continue. A bad initial value (<code>x:int = 1 + 2</code>) skips to
+the line's NEWLINE and stays in declaration mode. A broken <code>def</code>/<code>class</code>/<code>if</code>/<code>elif</code>/<code>while</code>/<code>for</code>
+header skips to its NEWLINE, and if an indented body follows, it's parsed too, so its INDENT doesn't cause more errors.</p></div></div>
+
+<div class="qa"><div class="q"><span class="qn">Q45</span>Why anchor on NEWLINE and not on the colon?</div><div class="a">
+<p>We tried the colon first. If the anchor never shows up, CUP searches to EOF and <b>gives up on the whole file</b>. Our metric caught this. A
+missing colon, or an error <i>after</i> the block that fell back into the header rule, made the parse abort. A NEWLINE always comes soon.
+We also moved the normal headers into small nonterminals (<code>if_header</code> …): once a header is reduced, its states leave the stack,
+so a later error can't fall back into it.</p></div></div>
+
+<div class="qa"><div class="q"><span class="qn">Q46</span>What are default reductions, and why did you add them?</div><div class="a">
+<p>A state is "consistent" if its only possible action is one reduction. We do that reduction on <i>any</i> lookahead. Without it, in
+<code>z = 5</code> followed by <code>lambda = 5</code>, CUP needed a valid lookahead to reduce <code>z = 5 NEWLINE</code> to a statement. It saw
+RESERVED first, reported the error, and recovery popped the half-reduced <code>z = 5</code>, so a <i>correct</i> statement vanished from the AST. The
+reference has the same problem. Bison does this by default; CUP has a <code>-compact_red</code> flag, but that's set in <code>pom.xml</code>,
+which we may not edit, so we patch the action table when the parser starts.</p>
+<p class="ptr">→ <code>enableDefaultReductions()</code> in <code>ChocoPy.cup</code> parser code</p></div></div>
+
+<div class="qa"><div class="q"><span class="qn">Q47</span>Can your recovery rules or default reductions change where the first error is reported? That's what's graded.</div><div class="a">
+<p>No. <code>error</code> never appears in the real input, so adding error rules doesn't change which token sequences are valid. An LR parser
+reports the first token that can't continue a valid prefix. Default reductions only perform reductions the parser would have done anyway;
+reductions consume no input, so the same token is rejected. We also checked it empirically: every mutated program has the same first error as the reference.</p></div></div>
+
+<div class="qa"><div class="q"><span class="qn">Q48</span>How did you measure recovery quality?</div><div class="a">
+<p><code>tools/recovery_quality.py</code> puts exactly one <code>$</code> into a random line of each of a few hundred valid programs. An ideal
+parser then reports exactly one error, keeps all the undamaged code, and never gives up. We count those three things for us and for the
+reference (see the table below), and kept only changes that improved the numbers.</p></div></div>
+
+<div class="qa"><div class="q"><span class="qn">Q49</span>Why does <code>lambda = 5</code> sometimes go unreported?</div><div class="a">
+<p>If it comes directly after another broken line, it falls inside CUP's 3-token re-sync window and is discarded. We tried windows of 2 and 1:
+recovery got <i>worse</i> (more cascades), so we kept 3. In <code>bad.py</code> every case is followed by a correct line, so each mistake gets its own error.</p></div></div>
+
+<div class="qa"><div class="q"><span class="qn">Q50</span>Your error messages aren't identical to the reference's. Is that a problem?</div><div class="a">
+<p>The spec says only the location of the first error is compared. The format "Parse error near token X: text" is the same. The reference adds
+hints like <code>&lt;bad escape&gt;</code>. We use the token's own source text (stored per token) instead of <code>yytext()</code>, which would
+be wrong after a pushback or at EOF.</p></div></div>
+
+<div class="qa"><div class="q"><span class="qn">Q51</span>Why an <code>IdentityHashMap</code> for the token text?</div><div class="a">
+<p>We want one entry per token <i>object</i>. Identity is exactly that, and it doesn't depend on whether <code>Symbol</code> overrides
+<code>equals</code>/<code>hashCode</code>. The text is attached to the token itself, so it stays correct even while CUP reads ahead during recovery.</p></div></div>
+
+<!-- ===================================================== G -->
+<h2 class="pb">G. Testing</h2>
+
+<div class="qa"><div class="q"><span class="qn">Q52</span>How do you know your generated "valid" programs are really valid?</div><div class="a">
+<p>We check them with the reference. The first time, only 193 of 400 were! The generator built targets like <code>-x.foo = 1</code> and chained
+comparisons hidden inside arithmetic. After fixing it, 500 of 500 were valid. Lesson: test the tester.</p></div></div>
+
+<div class="qa"><div class="q"><span class="qn">Q53</span>What's in your own test suite?</div><div class="a">
+<p>44 hand-written cases in <code>src/test/data/pa1/edge_cases</code> with expected <code>.ast</code> files generated by the reference: tabs, CR-only
+and CRLF line endings, no final newline, empty file, EOF with many dedents, escapes, IDSTRING types, max int, precedence, chained targets, and 20 bad
+programs. They run with the normal <code>--test</code> command.</p></div></div>
+
+<div class="qa"><div class="q"><span class="qn">Q54</span>What does good.py cover? What does bad.py show?</div><div class="a">
+<p><code>good.py</code> uses nearly every rule: all literal kinds and types, nested functions with global/nonlocal, classes with inheritance and a
+pass-only class, if/elif/else, while, for, chained and member/index assignments, every operator, conditional expressions, method chains, and
+blocks that end at EOF. <code>bad.py</code> has 9 deliberate mistakes (declarations, headers, statements, indentation, strings, integers) and
+gets exactly one error each, on distinct lines.</p></div></div>
+
+<div class="qa"><div class="q"><span class="qn">Q55</span>How long does your test run take?</div><div class="a">
+<p>Each comparison starts two JVMs, about 0.5 s each, so the tester runs comparisons in parallel threads: 1,000 files take about two minutes
+on a laptop. The 33 samples alone take a few seconds.</p></div></div>
+
+<!-- ===================================================== H -->
+<h2>H. Team, process, AI, and what comes next</h2>
+
+<div class="qa"><div class="q"><span class="qn">Q56</span>Who did what? And can each of you explain the other parts?</div><div class="a">
+<p>Mithulram: the lexer and indentation. Nafeel: the grammar, AST and locations. Dinodi: error recovery, the test tools and the bug report. We
+reviewed each other's code, and each of us has walked through all of it. (Then <i>show</i> it: answer the question even when it's about a teammate's area.)</p></div></div>
+
+<div class="qa"><div class="q"><span class="qn">Q57</span>Did you use AI tools? How did you make sure the code is correct and that you understand it?</div><div class="a">
+<p>Yes, as declared in the README: Claude as an assistant for code and test scripts. We didn't trust anything without evidence. Every design
+decision was checked against the reference with the differential tester and the recovery metric, and several first ideas were thrown away
+because the numbers said so (the STRING state, the colon anchors, smaller sync windows). We went through every line together. (Be honest: this question is likely.)</p></div></div>
+
+<div class="qa"><div class="q"><span class="qn">Q58</span>What did you learn that you didn't expect?</div><div class="a">
+<p>That "the grammar is right" and "the output is right" are very different things. Most of the work was in locations and error recovery,
+not in the grammar rules. And that measuring is worth it: two of our "improvements" made things worse, and we only found out from the numbers.</p></div></div>
+
+<div class="qa"><div class="q"><span class="qn">Q59</span>What will PA2 (semantic analysis) need from your AST?</div><div class="a">
+<p>Correct node types and accurate locations, because semantic errors are reported at node locations. Declarations are kept separate from
+statements, and type annotations are kept as ClassType/ListType. PA2 only runs on programs without syntax errors, so our recovery nodes
+(dropped statements) never reach it.</p></div></div>
+
+<div class="qa"><div class="q"><span class="qn">Q60</span>What is the difference between LALR(1) and LR(1)? Did it matter here?</div><div class="a">
+<p>LALR(1) merges LR(1) states that have the same items but different lookaheads. The tables are much smaller, but in rare cases the merge
+creates reduce/reduce conflicts that LR(1) wouldn't have. Our grammar has no conflicts, so it didn't matter. LALR may also do a few extra
+reductions before it detects an error, but it never shifts an erroneous token, so the error position is the same.</p></div></div>
+
+<hr>
+<h2>Recovery numbers to quote (final version)</h2>
+<p>One random <code>$</code> inserted into each valid program; two independent corpora. "Aborted" means CUP gave up on the rest of the file.
+<b>One-liner to remember:</b> "For one real mistake we report 1.4 errors and the reference 2.0. We report exactly one error three times out of four
+(the reference: fewer than half), and we never give up on a file."</p>
+<table>
+<tr><th>Corpus</th><th>Parser</th><th>Exactly one error</th><th>Avg. errors per mistake</th><th>Undamaged code kept</th><th>Aborted parses</th></tr>
+<tr><td rowspan="2">A (133 programs)</td><td>Reference</td><td>43.6 %</td><td>2.28</td><td>95.6 %</td><td>1</td></tr>
+<tr><td><b>Ours</b></td><td><b>76.7 %</b></td><td><b>1.35</b></td><td><b>95.8 %</b></td><td><b>0</b></td></tr>
+<tr><td rowspan="2">B (213 programs)</td><td>Reference</td><td>46.0 %</td><td>1.84</td><td>96.1 %</td><td>2</td></tr>
+<tr><td><b>Ours</b></td><td><b>73.2 %</b></td><td><b>1.38</b></td><td><b>96.2 %</b></td><td><b>0</b></td></tr>
+<tr><td>Both (346)</td><td>Reference → <b>Ours</b></td><td>45.1 % → <b>74.6 %</b></td><td>2.01 → <b>1.37</b></td><td>≈ 96 % → ≈ 96 %</td><td>3 → <b>0</b></td></tr>
+</table>
+
+</body>
+</html>
