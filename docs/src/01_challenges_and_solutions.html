@@ -81,7 +81,7 @@ IfStmt [16,13,19,8]     &lt;- ends at column 8 of line 19: the indentation of th
 <dt>Fix</dt><dd>We chose (b). <code>processIndentation()</code> pops one level, builds one DEDENT, then calls <code>yypushback(yylength())</code>. The next call
 matches the same whitespace again, compares it with the smaller stack, and emits the next DEDENT, until the levels agree. There is no extra data
 structure: the indentation stack is the only state.</dd>
-<dt>Where</dt><dd><code>ChocoPy.jflex</code> lines 194–240, and the line-start rule at 335–341.</dd>
+<dt>Where</dt><dd><code>ChocoPy.jflex</code> lines 175–220, and the line-start rule at 309–315.</dd>
 <dt>Lesson</dt><dd>Changing the <i>input</i> was simpler than adding a token buffer, and it can't fall out of sync with JFlex's line/column counters.</dd>
 </dl></div>
 
@@ -137,7 +137,7 @@ INDENT away, but its matching DEDENT turned up one line later as a second, misle
 turned into a bare <code>[</code> that broke the character class. Fix: write it as <code>[ !#-\[\]-~]</code>.</dd>
 <dt>v2 (redesign)</dt><dd>Our first version scanned strings character by character in a separate <code>STRING</code> state. The differential tester showed
 that the reference reports an unterminated string as a <b>single</b> <code>"</code> token and keeps lexing after it. We replaced the whole state with one
-regex for a complete literal plus a Java decoder (<code>stringSymbol()</code>, lines 262–291). That was simpler and it matched the reference.</dd>
+regex for a complete literal plus a Java decoder (<code>stringSymbol()</code>, lines 239–268). That was simpler and it matched the reference.</dd>
 <dt>Quirk 1</dt><dd>The reference's string match runs <b>across line breaks</b> up to the next quote, and then rejects the literal (a newline is not
 printable ASCII). Its end location is computed as start + length <i>on the start line</i>. We copied this.</dd>
 <dt>Quirk 2</dt><dd>A backslash directly before a line break ends the match (<code>\\[^\r\n]</code>). The fuzzer found this one too.</dd>
@@ -201,7 +201,7 @@ so each location comes from a symbol (<code>restxright</code>, <code>sxleft</cod
 <div class="card"><h3><span class="n">14</span>Desugaring <code>elif</code><span class="status ok">solved</span></h3><dl>
 <dt>Requirement</dt><dd>The AST has no elif. <code>if a: X elif b: Y else: Z</code> must become <code>IfStmt(a, X, [IfStmt(b, Y, Z)])</code>.</dd>
 <dt>Fix</dt><dd>A right-recursive <code>elif_else</code> rule: each <code>elif</code> returns a one-element list holding a nested <code>IfStmt</code>,
-whose location runs from <code>elif</code> to the end of the rest of the chain. No post-processing is needed. (<code>ChocoPy.cup</code> lines 612–626)</dd>
+whose location runs from <code>elif</code> to the end of the rest of the chain. No post-processing is needed. (<code>ChocoPy.cup</code> lines 575–588)</dd>
 </dl></div>
 
 <div class="card"><h3><span class="n">15</span>A function without <code>-&gt; type</code><span class="status ok">solved</span></h3><dl>

@@ -8,34 +8,27 @@ import java.util.Map;
 import java_cup.runtime.*;
 
 /*
- * ChocoPy lexer (PA1, group 5).
+ * ChocoPy lexer - PA1, group 5
  *
- * The interesting part of this file is not the keyword/operator table at
- * the bottom (that part is mechanical); it is the way we turn leading
- * whitespace into INDENT / DEDENT tokens. The overall picture:
+ * Most of this file is the usual keyword/operator list at the bottom. The
+ * part that took us time is indentation, so a quick overview first.
  *
- *   YYINITIAL  We are at the very beginning of a physical line. Nothing
- *              on this line has been tokenised yet. Here we either throw
- *              the whole line away (blank / comment-only line) or we
- *              measure its indentation and compare it with the stack.
+ * We use two states:
+ *   YYINITIAL  start of a line, nothing read yet. Blank and comment-only
+ *              lines are dropped here. For a real line we measure the
+ *              leading whitespace and compare it with the indent stack.
+ *   CODE       inside a line. Normal tokens. A line break gives NEWLINE
+ *              and puts us back in YYINITIAL.
  *
- *   CODE       We are in the middle of a logical line. Ordinary tokens
- *              are produced here. A line break emits NEWLINE and sends
- *              us back to YYINITIAL.
+ * The annoying case: one line can close several blocks, so it needs several
+ * DEDENTs, but a JFlex action can only return one token. What we do is emit
+ * one DEDENT and then yypushback() the whitespace. The next call reads the
+ * same whitespace again, compares it with the (now smaller) stack and emits
+ * the next DEDENT, until they match. That way we didn't need a token queue.
  *
- * String literals are matched as a whole by one regular expression and
- * then decoded in Java (see stringSymbol). A quote that is never closed
- * does not match that regex, so it falls back to a single UNRECOGNIZED
- * '"' token, and lexing carries on after it. The reference lexer
- * behaves the same way.
- *
- * A JFlex action can return at most one token, but one line can close
- * several blocks at once (and so needs several DEDENTs). We handle this
- * with yypushback(): after emitting one DEDENT we push the leading
- * whitespace back into the input. The next call to the lexer sees the
- * same whitespace again, compares it against the (now smaller) stack, and
- * emits the next DEDENT. This repeats until the levels match. No extra
- * token queue is needed.
+ * Strings are matched with one regex and decoded in stringSymbol(). A quote
+ * that is never closed just becomes a single UNRECOGNIZED token and we keep
+ * lexing after it (the reference lexer does the same).
  */
 
 %%
@@ -57,13 +50,12 @@ import java_cup.runtime.*;
 
 /*** Do not change the flags above unless you know what you are doing. ***/
 
-/* CODE: inside a logical line, producing regular tokens. */
+/* CODE = we are inside a line (see the comment at the top) */
 %state CODE
 
 %init{
-    /* "Before the first line of the input program is read, a single zero
-     *  is pushed on the stack; this will never be popped off again."
-     *  (ChocoPy reference manual, section 3.1.5) */
+    /* the manual (3.1.5) says the stack starts with a single 0 that is
+     * never popped */
     indentStack.push(0);
 %init}
 
@@ -73,52 +65,45 @@ import java_cup.runtime.*;
     /** Producer of token-related values for the parser. */
     final ComplexSymbolFactory symbolFactory = new ComplexSymbolFactory();
 
-    /** Width a tab advances to: the next multiple of 8 (manual, 3.1.5). */
+    /** A tab moves to the next multiple of 8 (manual 3.1.5). */
     private static final int TAB_STOP = 8;
 
-    /* ------------------------------------------------------------------
-     * Indentation bookkeeping
-     * ------------------------------------------------------------------ */
+    /* ---- indentation ------------------------------------------------- */
 
-    /** Indentation levels of the currently open blocks. The bottom is
-     *  always 0 and the values strictly increase towards the top. */
+    /** Indent levels of the blocks that are open right now. Bottom is
+     *  always 0, and every level is bigger than the one below it. */
     private final Deque<Integer> indentStack = new ArrayDeque<>();
 
-    /** True while we are in the middle of emitting a run of DEDENTs for
-     *  one line. If the stack runs past the line's level without hitting
-     *  it exactly, the dedent was inconsistent (see processIndentation). */
+    /** Set while we are emitting DEDENTs for one line. We need it to spot
+     *  a dedent that skips past the line's level without ever hitting it
+     *  (see processIndentation). */
     private boolean dedenting = false;
 
-    /* ------------------------------------------------------------------
-     * End-of-file bookkeeping
-     * ------------------------------------------------------------------ */
+    /* ---- end of file ------------------------------------------------- */
 
-    /** Where the next token made up at end of file will be placed.
+    /** Position for the next token we make up at end of file.
      *
-     *  If the last line has no line break, we act as if one were there: we
-     *  emit the missing NEWLINE and put everything after it on the next
-     *  line, column 1.
+     *  If the last line has no line break we pretend it has one: we emit
+     *  the missing NEWLINE and put the following tokens on the next line,
+     *  column 1.
      *
-     *  Each later EOF token moves one column to the right. The reference
-     *  does this too: three DEDENTs at EOF sit at columns 1, 2 and 3. As a
-     *  result an outer block ends one column after the block nested in
-     *  it. We have to copy this because block locations are taken from
-     *  these DEDENTs. */
+     *  Every EOF token after that is one column further right. That looks
+     *  odd, but the reference does it (three DEDENTs at EOF end up at
+     *  columns 1, 2 and 3) and block end positions come from these
+     *  DEDENTs, so we had to copy it. It's in our bug report. */
     private int eofLine = -1;
     private int eofColumn = -1;
 
-    /* ------------------------------------------------------------------
-     * Token text for error messages
-     * ------------------------------------------------------------------ */
+    /* ---- token text for error messages ------------------------------- */
 
-    /** Source text of every token we hand out. The parser asks for it when
-     *  it reports "Parse error near token X: <text>". We cannot use
-     *  yytext() for that: after a yypushback(), or for a token we invent
-     *  at end of file, yytext() no longer holds that token's text. And
-     *  while CUP recovers from an error, it reads several tokens ahead. */
+    /** The source text of each token we return. The parser uses it for
+     *  "Parse error near token X: <text>". The starter used yytext() there,
+     *  but that's only the last match: it's wrong after a yypushback(), for
+     *  tokens we invent at EOF, and while CUP reads ahead during error
+     *  recovery. */
     private final Map<Symbol, String> tokenText = new IdentityHashMap<>();
 
-    /** Return the source text of TOKEN, or "" if we never recorded any. */
+    /** Source text of TOKEN ("" if we never stored any). */
     public String getTokenText(Symbol token) {
         String text = tokenText.get(token);
         return text == null ? "" : text;
@@ -142,8 +127,8 @@ import java_cup.runtime.*;
             new ComplexSymbolFactory.Location(yyline + 1, yycolumn + yylength()));
     }
 
-    /** The general form: a token of category TYPE with semantic value
-     *  VALUE and source text TEXT, spanning LEFT..RIGHT. */
+    /** Same, but with an explicit text and location. Used for tokens
+     *  whose position isn't just "the current match". */
     private Symbol symbol(int type, Object value, String text,
                           ComplexSymbolFactory.Location left,
                           ComplexSymbolFactory.Location right) {
@@ -153,7 +138,7 @@ import java_cup.runtime.*;
         return token;
     }
 
-    /** A one-column token invented at end of file (DEDENT or EOF). */
+    /** DEDENT or EOF that we create at end of file (one column wide). */
     private Symbol eofSymbol(int type) {
         if (eofLine < 0) {
             eofLine = yyline + 1;
@@ -165,12 +150,10 @@ import java_cup.runtime.*;
         return symbol(type, "", "", here, here);
     }
 
-    /* ------------------------------------------------------------------
-     * Indentation
-     * ------------------------------------------------------------------ */
+    /* ---- indentation logic ------------------------------------------- */
 
-    /** Indentation width of the whitespace WS: a space counts as one
-     *  column, and a tab jumps to the next multiple of 8. */
+    /** Width of the leading whitespace WS. Space = 1 column, tab = jump
+     *  to the next multiple of 8. */
     private static int indentationWidth(String ws) {
         int width = 0;
         for (int i = 0; i < ws.length(); i++) {
@@ -183,68 +166,63 @@ import java_cup.runtime.*;
         return width;
     }
 
-    /** Called at the start of every logical line, while yytext() holds
-     *  exactly the line's leading whitespace (possibly empty). Returns
-     *  the INDENT / DEDENT / UNRECOGNIZED token to emit, or null if the
-     *  line stays at the current level.
+    /** Runs at the start of every real line. yytext() is exactly the
+     *  leading whitespace here (can be empty). Returns INDENT, DEDENT or
+     *  UNRECOGNIZED, or null when the level doesn't change.
      *
-     *  Only one token is produced per call. When more DEDENTs are needed,
-     *  the whitespace is pushed back so that we come here again on the
-     *  next call, until the stack and the line agree. */
+     *  One token per call. If more DEDENTs are needed we push the
+     *  whitespace back and end up here again on the next call. */
     private Symbol processIndentation() {
         int width = indentationWidth(yytext());
         int current = indentStack.peek();
 
         if (width == current) {
-            /* Same block: nothing to emit, start lexing the line. */
+            /* same level, nothing to emit */
             dedenting = false;
             yybegin(CODE);
             return null;
         }
 
         if (width < current) {
-            /* Close the innermost block. The DEDENT covers the whitespace
-             * of the line that closes it, which is the position the
-             * reference reports (e.g. [19,1,19,8] for 8 spaces). */
+            /* close the innermost block. The DEDENT's location is the
+             * whitespace of this line - that's what the reference reports,
+             * e.g. [19,1,19,8] for 8 spaces. We found this in coverage.py.ast */
             indentStack.pop();
             dedenting = true;
             Symbol dedent = symbol(ChocoPyTokens.DEDENT, "", "",
                 new ComplexSymbolFactory.Location(yyline + 1, yycolumn + 1),
                 new ComplexSymbolFactory.Location(yyline + 1, yycolumn + yylength()));
-            yypushback(yylength());     /* look at this line again */
+            yypushback(yylength());     /* read this line again next call */
             return dedent;
         }
 
         /* width > current */
         if (dedenting) {
-            /* We popped past this line's level without ever matching it,
-             * e.g. levels 0,4,8 and a line indented by 2. Python calls
-             * this "unindent does not match any outer indentation level".
-             * The lexer must not report errors itself, so it emits an
-             * UNRECOGNIZED token that no grammar rule accepts.
+            /* We went past this line's level without hitting it, e.g.
+             * levels 0,4,8 and then a line indented by 2 (Python would say
+             * "unindent does not match any outer indentation level").
+             * The lexer isn't allowed to report errors, so we return
+             * UNRECOGNIZED and the parser reports it.
              *
-             * The line is then treated as belonging to the enclosing level
-             * we just reached. Opening a new level here (as the reference
-             * does) would emit an INDENT that the parser's error recovery
-             * throws away, while the matching DEDENT later shows up as a
-             * second, misleading error. */
+             * After that we just treat the line as part of the level we
+             * reached. Our first version opened a new level here like the
+             * reference does, but then the parser's recovery ate the INDENT
+             * and the matching DEDENT caused a second, fake error. */
             dedenting = false;
             yybegin(CODE);
             return symbol(ChocoPyTokens.UNRECOGNIZED);
         }
 
-        /* A deeper line opens a new block. */
+        /* deeper line -> new block */
         indentStack.push(width);
         yybegin(CODE);
         return symbol(ChocoPyTokens.INDENT);
     }
 
-    /* ------------------------------------------------------------------
-     * Literals
-     * ------------------------------------------------------------------ */
+    /* ---- literals ---------------------------------------------------- */
 
-    /** Integer literal token for TEXT, or UNRECOGNIZED if it does not fit
-     *  in 32 bits (the manual makes 2147483647 the largest literal). */
+    /** INTEGER token, or UNRECOGNIZED if it doesn't fit in 32 bits
+     *  (2147483647 is the largest allowed literal, manual 3.4.2). */
     private Symbol integerSymbol(String text) {
         try {
             return symbol(ChocoPyTokens.INTEGER, Integer.parseInt(text));
@@ -253,12 +231,11 @@ import java_cup.runtime.*;
         }
     }
 
-    /** Token for the complete string literal TEXT (quotes included).
+    /** Turns a whole string literal (with quotes) into a token.
      *
-     *  The value is the text between the quotes with the four legal escapes
-     *  (\" \n \t \\) applied. The literal is UNRECOGNIZED if it holds any
-     *  other escape (e.g. \o) or a character outside printable ASCII
-     *  32..126 (e.g. a tab). The reference treats both cases that way too. */
+     *  Only \" \n \t and \\ are legal escapes. Any other escape (like \o)
+     *  or a character outside ASCII 32..126 (a raw tab, say) makes the whole
+     *  literal UNRECOGNIZED. We checked: the reference does the same. */
     private Symbol stringSymbol(String text) {
         StringBuilder value = new StringBuilder();
         boolean legal = true;
@@ -282,8 +259,8 @@ import java_cup.runtime.*;
         if (!legal) {
             return symbol(ChocoPyTokens.UNRECOGNIZED);
         }
-        /* A string whose contents look like an identifier can also be used
-         * as a type annotation, e.g. self: "Foo". */
+        /* if the contents look like an identifier it's an IDSTRING, which
+         * is also allowed as a type, e.g. self: "Foo" */
         String contents = value.toString();
         int type = contents.matches("[a-zA-Z_][a-zA-Z0-9_]*")
             ? ChocoPyTokens.IDSTRING : ChocoPyTokens.STRING;
@@ -300,38 +277,35 @@ Comment    = "#" [^\r\n]*
 IntegerLiteral = 0 | [1-9][0-9]*
 Identifier     = [a-zA-Z_][a-zA-Z0-9_]*
 
-/* A complete string literal: a quote, then any characters except a quote
- * or a backslash, or a backslash followed by any character other than a
- * line break, then the closing quote. This only fixes where the literal ends. Whether its
- * escapes and characters are legal is checked in stringSymbol().
+/* A whole string literal. This regex only decides where the string ends;
+ * stringSymbol() checks if the escapes and characters are legal.
  *
- * Line breaks are allowed in this regex on purpose. The reference
- * lexer also runs up to the next quote, even on a later line, and then
- * rejects the literal because a line break is not printable ASCII. Only
- * a quote with no partner anywhere later in the file falls back to the
- * single-character UNRECOGNIZED rule. (A backslash directly before a line
- * break also ends the match there, again like the reference.) */
+ * Yes, line breaks are allowed inside on purpose. Our fuzzer showed that the
+ * reference lexer also runs to the next quote, even lines later, and then
+ * rejects the whole thing. A backslash right before a line break stops the
+ * match, again like the reference. If there is no closing quote at all, the
+ * single " falls through to the UNRECOGNIZED rule at the bottom. */
 StringLiteral = \" ([^\"\\] | \\[^\r\n])* \"
 
 %%
 
 
 /* ======================================================================
- * Start of a physical line: blank lines and indentation
+ * Start of a line: blank lines and indentation
  * ====================================================================== */
 <YYINITIAL> {
 
-  /* A line holding only whitespace and/or a comment is not a logical
-   * line: no NEWLINE, and its indentation is ignored (manual, 3.1.4). */
+  /* only spaces/tabs and maybe a comment: not a real line, so no NEWLINE
+   * and its indentation doesn't count (manual 3.1.4) */
   {WhiteSpace}* {Comment}? {LineBreak}   { /* ignore */ }
 
-  /* The same, but on the last line of a file without a final newline. */
+  /* same thing on the last line when the file has no final newline */
   {WhiteSpace}* {Comment}                { /* ignore */ }
   {WhiteSpace}+                          { /* ignore */ }
 
-  /* A real logical line. We match its leading whitespace plus the first
-   * real character so that the match is never empty, then give that
-   * character back so the CODE state can lex it as usual. */
+  /* A real line. We match the whitespace plus the first real character
+   * because JFlex can't fire on an empty match (indentation 0), then give
+   * the character back so CODE lexes it normally. */
   {WhiteSpace}* [^ \t\r\n#]              {
                                            yypushback(1);
                                            Symbol token = processIndentation();
@@ -343,21 +317,21 @@ StringLiteral = \" ([^\"\\] | \\[^\r\n])* \"
 
 
 /* ======================================================================
- * Inside a logical line
+ * Inside a line
  * ====================================================================== */
 <CODE> {
 
-  /* End of the logical line. */
+  /* end of the line */
   {LineBreak}                 { yybegin(YYINITIAL);
                                 return symbol(ChocoPyTokens.NEWLINE); }
 
-  /* Whitespace between tokens and trailing comments are skipped. */
+  /* spaces between tokens and comments at the end of a line */
   {WhiteSpace}+               { /* ignore */ }
   {Comment}                   { /* ignore */ }
 
-  /* Keywords that ChocoPy actually uses. These come before the
-   * Identifier rule; JFlex breaks equal-length ties by rule order, and
-   * longest match still makes "classic" an identifier. */
+  /* Keywords. They have to come before the Identifier rule: on a tie JFlex
+   * takes the first rule. "classic" is still an identifier because the
+   * longest match wins. */
   "False"                     { return symbol(ChocoPyTokens.FALSE); }
   "None"                      { return symbol(ChocoPyTokens.NONE); }
   "True"                      { return symbol(ChocoPyTokens.TRUE); }
@@ -378,22 +352,22 @@ StringLiteral = \" ([^\"\\] | \\[^\r\n])* \"
   "return"                    { return symbol(ChocoPyTokens.RETURN); }
   "while"                     { return symbol(ChocoPyTokens.WHILE); }
 
-  /* Python keywords with no meaning in ChocoPy. They are reserved so that
-   * every legal ChocoPy program is also legal Python (manual, 3.3). No
-   * grammar rule uses RESERVED, so using one is a syntax error. */
+  /* Python keywords that ChocoPy doesn't use but still reserves (manual
+   * 3.3). The reference calls them RESERVED. No grammar rule accepts them,
+   * so e.g. "lambda = 5" is a syntax error. */
   "as" | "assert" | "async" | "await" | "break" | "continue" | "del"
   | "except" | "finally" | "from" | "import" | "lambda" | "raise"
   | "try" | "with" | "yield"
                               { return symbol(ChocoPyTokens.RESERVED); }
 
-  /* Identifiers and integer literals. */
+  /* names and numbers */
   {Identifier}                { return symbol(ChocoPyTokens.IDENTIFIER, yytext()); }
   {IntegerLiteral}            { return integerSymbol(yytext()); }
 
-  /* String literals. */
+  /* strings (see the StringLiteral macro) */
   {StringLiteral}             { return stringSymbol(yytext()); }
 
-  /* Operators. Longest match makes "//" beat "/" and "<=" beat "<". */
+  /* operators - longest match makes "<=" win over "<" */
   "+"                         { return symbol(ChocoPyTokens.PLUS); }
   "-"                         { return symbol(ChocoPyTokens.MINUS); }
   "*"                         { return symbol(ChocoPyTokens.TIMES); }
@@ -407,7 +381,7 @@ StringLiteral = \" ([^\"\\] | \\[^\r\n])* \"
   "!="                        { return symbol(ChocoPyTokens.NEQ); }
   "="                         { return symbol(ChocoPyTokens.EQ); }
 
-  /* Delimiters. */
+  /* delimiters */
   "("                         { return symbol(ChocoPyTokens.LPAREN); }
   ")"                         { return symbol(ChocoPyTokens.RPAREN); }
   "["                         { return symbol(ChocoPyTokens.LINDEX); }
@@ -425,9 +399,8 @@ StringLiteral = \" ([^\"\\] | \\[^\r\n])* \"
 <<EOF>>                       {
                                 switch (yystate()) {
                                 case CODE:
-                                    /* The last line had no line break. Emit
-                                     * the NEWLINE it would have produced;
-                                     * later tokens go on the next line. */
+                                    /* last line had no line break: give
+                                     * the NEWLINE it would have had */
                                     yybegin(YYINITIAL);
                                     ComplexSymbolFactory.Location here =
                                         new ComplexSymbolFactory.Location(yyline + 1, yycolumn + 1);
@@ -435,8 +408,8 @@ StringLiteral = \" ([^\"\\] | \\[^\r\n])* \"
                                     eofColumn = 1;
                                     return symbol(ChocoPyTokens.NEWLINE, "", "", here, here);
                                 default:
-                                    /* Close every block that is still open,
-                                     * one DEDENT per call, then EOF. */
+                                    /* close the open blocks, one DEDENT
+                                     * per call, then EOF */
                                     if (indentStack.peek() > 0) {
                                         indentStack.pop();
                                         return eofSymbol(ChocoPyTokens.DEDENT);
@@ -445,6 +418,6 @@ StringLiteral = \" ([^\"\\] | \\[^\r\n])* \"
                                 }
                               }
 
-/* Error fallback: a character that starts no token (e.g. $, &, !, or a
- * double quote that never gets closed). */
+/* Anything else ($, &, !, or a " that never gets closed) -> UNRECOGNIZED.
+ * The parser turns it into a syntax error. */
 <CODE> [^]                    { return symbol(ChocoPyTokens.UNRECOGNIZED); }
