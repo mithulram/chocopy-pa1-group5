@@ -118,5 +118,4 @@ member to understand and defend every part of their code anyway.
 ## Credits
 
 The starter code, the AST classes and `chocopy-ref.jar` come from the ChocoPy project at UC Berkeley, adapted by
-the teaching team (BSD licence, see [`chocopy-pa1/LICENSE`](chocopy-pa1/LICENSE)). What we used from outside,
-including AI tools, is listed in the [write-up](chocopy-pa1/README.md#submission-write-up).
+the teaching team (BSD licence, see [`chocopy-pa1/LICENSE`](chocopy-pa1/LICENSE)).

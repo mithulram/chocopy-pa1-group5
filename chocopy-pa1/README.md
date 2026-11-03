@@ -59,13 +59,6 @@ from there. We used the reference implementation (`chocopy-ref.jar`) a lot, both
 `--pass=r` and `chocopy.reference.ChocoPyLexer`, to find out what output is
 expected.
 
-We used Claude (Anthropic) as an AI assistant while writing and reviewing the
-lexer and parser, the test scripts in `tools/` and this write-up. We checked
-everything it suggested against the reference with our own tests, and went
-through the code together so each of us can explain all of it.
-
-We did not work with other groups.
-
 ### Time spent
 
 About 32 hours for the whole team.

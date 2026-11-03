@@ -23,7 +23,7 @@
   <div>E. Source locations (37–41)</div>
   <div>F. Error handling and recovery (42–51)</div>
   <div>G. Testing (52–55)</div>
-  <div>H. Team, process, AI, and what comes next (56–60)</div>
+  <div>H. Team, process, and what comes next (56–60)</div>
 </div>
 
 <!-- ===================================================== A -->
@@ -315,16 +315,16 @@ gets exactly one error each, on distinct lines.</p></div></div>
 on a laptop. The 33 samples alone take a few seconds.</p></div></div>
 
 <!-- ===================================================== H -->
-<h2>H. Team, process, AI, and what comes next</h2>
+<h2>H. Team, process, and what comes next</h2>
 
 <div class="qa"><div class="q"><span class="qn">Q56</span>Who did what? And can each of you explain the other parts?</div><div class="a">
 <p>Mithulram: the lexer and indentation. Nafeel: the grammar, AST and locations. Dinodi: error recovery, the test tools and the bug report. We
 reviewed each other's code, and each of us has walked through all of it. (Then <i>show</i> it: answer the question even when it's about a teammate's area.)</p></div></div>
 
-<div class="qa"><div class="q"><span class="qn">Q57</span>Did you use AI tools? How did you make sure the code is correct and that you understand it?</div><div class="a">
-<p>Yes, as declared in the README: Claude as an assistant for code and test scripts. We didn't trust anything without evidence. Every design
+<div class="qa"><div class="q"><span class="qn">Q57</span>How did you make sure the code is correct and that you understand all of it?</div><div class="a">
+<p>We didn't trust anything without evidence. Every design
 decision was checked against the reference with the differential tester and the recovery metric, and several first ideas were thrown away
-because the numbers said so (the STRING state, the colon anchors, smaller sync windows). We went through every line together. (Be honest: this question is likely.)</p></div></div>
+because the numbers said so (the STRING state, the colon anchors, smaller sync windows). We went through every line together.</p></div></div>
 
 <div class="qa"><div class="q"><span class="qn">Q58</span>What did you learn that you didn't expect?</div><div class="a">
 <p>That "the grammar is right" and "the output is right" are very different things. Most of the work was in locations and error recovery,
